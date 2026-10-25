@@ -1,0 +1,16 @@
+[package]
+name = "fast-multipart-core"
+description = "Sans-IO streaming parser for multipart/form-data (RFC 7578)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+# Exposes property checks for the fuzz targets in `fuzz/`.
+fuzzing = []
+
+[dependencies]
+memchr.workspace = true
+
+[lints]
+workspace = true

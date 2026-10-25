@@ -1,0 +1,10 @@
+/target
+/.venv
+__pycache__/
+*.pyd
+*.so
+.pytest_cache/
+.hypothesis/
+/dist
+*.pdb
+/bench/multipart_bench/work

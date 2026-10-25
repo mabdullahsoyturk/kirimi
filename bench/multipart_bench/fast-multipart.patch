@@ -1,0 +1,61 @@
+diff --git a/README.md.j2 b/README.md.j2
+index 9c6dae4..9329bec 100644
+--- a/README.md.j2
++++ b/README.md.j2
+@@ -24,6 +24,8 @@ also the reason I'm benchmarking parsers in the first place.
+   * Used in [Bottle](https://pypi.org/project/bottle/), [LiteStar](https://litestar.dev/), [Zope](https://zope.readthedocs.io/) and others.
+   * [CPython docs](https://docs.python.org/3.12/library/cgi.html) recommend it as a `cgi.FieldStorage` replacement.
+   * Disclaimer: I am the author and maintainer of this library.
++* fast-multipart v{{ package_version("fast-multipart") }}
++  * Written in Rust (PyO3), with an API compatible with `multipart`.
+ * [werkzeug](https://pypi.org/project/Werkzeug/) v{{ package_version("Werkzeug") }}
+   * Used in [Flask](https://pypi.org/project/Flask/) and others.
+   * Does a lot more than *just* multipart parsing.
+diff --git a/multipart_bench/parsers.py b/multipart_bench/parsers.py
+index 8bce255..fd04485 100644
+--- a/multipart_bench/parsers.py
++++ b/multipart_bench/parsers.py
+@@ -54,6 +54,35 @@ except ImportError:
+     multipart_sansio = None
+     multipart_blocking = None
+ 
++try:
++    import fast_multipart
++
++    @add_parser
++    def fast_multipart_sansio(scenario: Scenario):
++        read = scenario.payload.read
++        chunksize = scenario.chunksize
++        with fast_multipart.PushMultipartParser(scenario.boundary) as parser:
++            parse = parser.parse
++            while not parser.closed:
++                for event in parse(read(chunksize)):
++                    pass
++
++    @add_parser
++    def fast_multipart_blocking(scenario: Scenario):
++        list(
++            fast_multipart.MultipartParser(
++                scenario.payload,
++                boundary=scenario.boundary,
++                buffer_size=scenario.chunksize,
++                spool_limit=SPOOL_LIMIT,
++            )
++        )
++
++
++except ImportError:
++    fast_multipart_sansio = None
++    fast_multipart_blocking = None
++
+ try:
+     from django.http.multipartparser import MultiPartParser
+     from django.http.request import HttpRequest
+@@ -294,6 +323,7 @@ def email_blocking(scenario: Scenario):
+ 
+ parser_table = {
+     "multipart": [multipart_blocking, multipart_sansio],
++    "fast-multipart": [fast_multipart_blocking, fast_multipart_sansio],
+     "python-multipart": [starlette_blocking, starlette_sansio],
+     "werkzeug": [werkzeug_blocking, werkzeug_sansio],
+     "django": [django_blocking, None],

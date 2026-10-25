@@ -1,0 +1,28 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "fast-multipart"
+version = "0.1.0"
+description = "Fast streaming multipart/form-data parser, written in Rust"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Free Threading :: 2 - Beta",
+    "Topic :: Internet :: WWW/HTTP",
+]
+
+[dependency-groups]
+dev = ["maturin>=1.9,<2", "pytest", "hypothesis", "multipart==2.0.1"]
+
+[tool.maturin]
+manifest-path = "crates/python/Cargo.toml"
+python-source = "python"
+module-name = "fast_multipart._fast_multipart"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

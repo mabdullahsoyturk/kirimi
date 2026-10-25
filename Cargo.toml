@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/python"]
+exclude = ["fuzz"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+memchr = "2.8"
+fast-multipart-core = { path = "crates/core" }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
