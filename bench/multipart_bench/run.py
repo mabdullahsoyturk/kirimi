@@ -1,4 +1,4 @@
-"""Run defnull's multipart_bench with fast-multipart added as a contestant.
+"""Run defnull's multipart_bench with kirimi added as a contestant.
 
     python bench/multipart_bench/run.py [--profile fast] [--plots] [pattern ...]
 
@@ -6,14 +6,14 @@ Steps:
 
 1. Clone https://github.com/defnull/multipart_bench at a pinned commit into
    bench/multipart_bench/work (reset on every run) and apply
-   fast-multipart.patch, which adds the adapters and a README entry.
+   kirimi.patch, which adds the adapters and a README entry.
 2. Create a virtual environment there with the other parsers and this
    repository's package (built from source, so Rust is required). Uses uv if
    available, otherwise venv and pip.
 3. Run the benchmark and render the README, then print the result tables.
 
 Patterns are passed on to multipart_bench's run.py, e.g. "upload-*" or
-"*-fast_multipart_*". The Makefile of multipart_bench pins the benchmark to
+"*-kirimi_*". The Makefile of multipart_bench pins the benchmark to
 one CPU core with real-time priority; that is Linux-only and not done here,
 so expect more noise than in the published results.
 """
@@ -31,7 +31,7 @@ COMMIT = "2f90d62043f5c921d8c90671f014e6aa72d8ebfb"
 
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parents[1]
-PATCH = HERE / "fast-multipart.patch"
+PATCH = HERE / "kirimi.patch"
 
 RUN_REQUIREMENTS = ["jinja2", "numpy", "scipy"]
 PLOT_REQUIREMENTS = ["matplotlib"]
@@ -85,7 +85,7 @@ def install(workdir: Path, python_version: str, plots: bool) -> Path:
             "--python",
             python,
             "--reinstall-package",
-            "fast-multipart",
+            "kirimi",
             PROJECT,
         )
     else:

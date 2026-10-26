@@ -27,21 +27,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
-name = "fast-multipart-core"
-version = "0.1.0"
-dependencies = [
- "memchr",
-]
-
-[[package]]
-name = "fast-multipart-fuzz"
-version = "0.0.0"
-dependencies = [
- "fast-multipart-core",
- "libfuzzer-sys",
-]
-
-[[package]]
 name = "find-msvc-tools"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,6 +51,21 @@ checksum = "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
 dependencies = [
  "getrandom",
  "libc",
+]
+
+[[package]]
+name = "kirimi-core"
+version = "0.1.0"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "kirimi-fuzz"
+version = "0.0.0"
+dependencies = [
+ "kirimi-core",
+ "libfuzzer-sys",
 ]
 
 [[package]]

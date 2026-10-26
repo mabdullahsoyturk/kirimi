@@ -3,7 +3,7 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
-name = "fast-multipart"
+name = "kirimi"
 dynamic = ["version"]
 description = "Fast streaming multipart/form-data parser, written in Rust"
 readme = "README.md"
@@ -41,7 +41,7 @@ cache-keys = [
 [tool.maturin]
 manifest-path = "crates/python/Cargo.toml"
 python-source = "python"
-module-name = "fast_multipart._fast_multipart"
+module-name = "kirimi._kirimi"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -61,6 +61,6 @@ ignore = ["E501"]
 "tests/*" = ["B018"]
 
 [tool.ty.environment]
-# Resolve `fast_multipart` from the source tree, so type checking does not
+# Resolve `kirimi` from the source tree, so type checking does not
 # need the compiled extension.
 root = ["python", "."]

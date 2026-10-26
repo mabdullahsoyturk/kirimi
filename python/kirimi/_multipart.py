@@ -25,7 +25,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Unpack, overload
 from urllib.parse import unquote_plus
 
-from ._fast_multipart import (
+from ._kirimi import (
     MultipartError,
     MultipartParser,
     MultipartPart,
@@ -37,12 +37,12 @@ from ._fast_multipart import (
     content_disposition_unquote,
     header_unquote,
 )
-from ._fast_multipart import PushMultipartParser as _PushMultipartParser
+from ._kirimi import PushMultipartParser as _PushMultipartParser
 
 if TYPE_CHECKING:
     from wsgiref.types import WSGIEnvironment
 
-    from ._fast_multipart import _Limit, _ParserOptions, _Readable, _Writable
+    from ._kirimi import _Limit, _ParserOptions, _Readable, _Writable
 
 ParserEvent = MultipartSegment | bytes | None
 BlockingReader = Callable[[int], bytes]

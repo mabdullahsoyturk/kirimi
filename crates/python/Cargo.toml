@@ -1,16 +1,16 @@
 [package]
-name = "fast-multipart-python"
+name = "kirimi-python"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [lib]
-name = "_fast_multipart"
+name = "_kirimi"
 crate-type = ["cdylib"]
 
 [dependencies]
-fast-multipart-core.workspace = true
+kirimi-core.workspace = true
 pyo3 = "0.30"
 
 [lints.rust]

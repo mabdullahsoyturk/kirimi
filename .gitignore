@@ -8,3 +8,4 @@ __pycache__/
 /dist
 *.pdb
 /bench/multipart_bench/work
+.env

@@ -1,4 +1,4 @@
-//! Python bindings for `fast-multipart-core`.
+//! Python bindings for `kirimi-core`.
 //!
 //! The API mirrors `multipart.PushMultipartParser` and
 //! `multipart.MultipartSegment` from the `multipart` library, so this module
@@ -8,7 +8,7 @@ mod parts;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use fast_multipart_core as mp;
+use kirimi_core as mp;
 use pyo3::create_exception;
 use pyo3::exceptions::{PyKeyError, PyLookupError, PyValueError};
 use pyo3::prelude::*;
@@ -16,31 +16,31 @@ use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyByteArray, PyBytes, PyFloat, PyList, PyString};
 
 create_exception!(
-    fast_multipart,
+    kirimi,
     MultipartError,
     PyValueError,
     "Base class for all parser errors or warnings"
 );
 create_exception!(
-    fast_multipart,
+    kirimi,
     ParserError,
     MultipartError,
     "Detected invalid input"
 );
 create_exception!(
-    fast_multipart,
+    kirimi,
     StrictParserError,
     ParserError,
     "Detected unusual input while parsing in strict mode"
 );
 create_exception!(
-    fast_multipart,
+    kirimi,
     ParserLimitReached,
     MultipartError,
     "Parser reached one of the configured limits"
 );
 create_exception!(
-    fast_multipart,
+    kirimi,
     ParserStateError,
     MultipartError,
     "Parser is used incorrectly (e.g. use after close)"
@@ -111,7 +111,7 @@ fn ascii_title(name: &str) -> String {
 /// Segments do not store any payload data, but the parser updates
 /// `bytes_received` while parsing and makes the final `size` available once
 /// the segment is `complete`.
-#[pyclass(module = "fast_multipart", name = "MultipartSegment", frozen)]
+#[pyclass(module = "kirimi", name = "MultipartSegment", frozen)]
 pub struct Segment {
     headers: Vec<(String, String)>,
     headerlist: PyOnceLock<Py<PyList>>,
@@ -302,7 +302,7 @@ impl mp::Sink for EventSink<'_> {
 /// `MultipartSegment` per part, followed by zero or more non-empty `bytes`
 /// chunks of the part body, followed by `None` at the end of the part.
 /// Parse an empty chunk or call `close()` to signal the end of input.
-#[pyclass(module = "fast_multipart", name = "PushMultipartParser", subclass)]
+#[pyclass(module = "kirimi", name = "PushMultipartParser", subclass)]
 pub struct PushParser {
     inner: mp::Parser,
     boundary: Py<PyBytes>,
@@ -593,7 +593,7 @@ fn _parse_options_header(header: &str, mode: u8) -> (String, Option<Vec<(String,
 }
 
 #[pymodule]
-fn _fast_multipart(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _kirimi(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<PushParser>()?;

@@ -10,10 +10,10 @@ from wsgiref.types import WSGIEnvironment
 import multipart
 import pytest
 
-import fast_multipart as fm
+import kirimi as km
 
 if TYPE_CHECKING:
-    from fast_multipart._fast_multipart import _ParserOptions
+    from kirimi._kirimi import _ParserOptions
 
 BOUNDARY = "boundary"
 
@@ -30,7 +30,7 @@ def form(*fields: tuple[str, str | None, bytes]) -> bytes:
 
 
 def summarize(
-    parts: Iterable[fm.MultipartPart | multipart.MultipartPart],
+    parts: Iterable[km.MultipartPart | multipart.MultipartPart],
 ) -> list[tuple[object, ...]]:
     return [
         (
@@ -55,7 +55,7 @@ def test_multipart_parser_matches_reference(buffer_size: int) -> None:
         ("b", None, "\xe4€".encode()),
     )
     kwargs: _ParserOptions = {"buffer_size": buffer_size, "spool_limit": 100_000}
-    ours = fm.MultipartParser(io.BytesIO(data), BOUNDARY, **kwargs)
+    ours = km.MultipartParser(io.BytesIO(data), BOUNDARY, **kwargs)
     theirs = multipart.MultipartParser(io.BytesIO(data), BOUNDARY, **kwargs)
     assert summarize(ours) == summarize(theirs)
     big, b = ours.get("big"), ours.get("b")
@@ -67,17 +67,17 @@ def test_multipart_parser_matches_reference(buffer_size: int) -> None:
 
 def test_memory_and_disk_limits() -> None:
     data = form(("a", None, b"x" * 1000), ("b", None, b"y" * 1000))
-    with pytest.raises(fm.ParserLimitReached, match="Memory limit"):
-        list(fm.MultipartParser(io.BytesIO(data), BOUNDARY, memory_limit=1500))
-    with pytest.raises(fm.ParserLimitReached, match="Disk limit"):
-        list(fm.MultipartParser(io.BytesIO(data), BOUNDARY, spool_limit=10, disk_limit=1500))
-    with pytest.raises(fm.ParserLimitReached, match="segment count"):
-        list(fm.MultipartParser(io.BytesIO(data), BOUNDARY, part_limit=1))
+    with pytest.raises(km.ParserLimitReached, match="Memory limit"):
+        list(km.MultipartParser(io.BytesIO(data), BOUNDARY, memory_limit=1500))
+    with pytest.raises(km.ParserLimitReached, match="Disk limit"):
+        list(km.MultipartParser(io.BytesIO(data), BOUNDARY, spool_limit=10, disk_limit=1500))
+    with pytest.raises(km.ParserLimitReached, match="segment count"):
+        list(km.MultipartParser(io.BytesIO(data), BOUNDARY, part_limit=1))
 
 
 def test_save_as_and_close(tmp_path: Path) -> None:
     data = form(("f", "f.txt", b"content"))
-    part = fm.MultipartParser(io.BytesIO(data), BOUNDARY).get("f")
+    part = km.MultipartParser(io.BytesIO(data), BOUNDARY).get("f")
     assert part is not None
     assert part.save_as(tmp_path / "out") == 7
     assert (tmp_path / "out").read_bytes() == b"content"
@@ -85,7 +85,7 @@ def test_save_as_and_close(tmp_path: Path) -> None:
     assert part.disposition == 'form-data; name="f"; filename="f.txt"'
     assert part.content_type == "application/octet-stream"
     part.close()
-    with pytest.raises(fm.MultipartError):
+    with pytest.raises(km.MultipartError):
         part.raw
 
 
@@ -108,7 +108,7 @@ def environ(content_type: str, body: bytes) -> WSGIEnvironment:
     ],
 )
 def test_parse_form_data_matches_reference(content_type: str, body: bytes) -> None:
-    forms, files = fm.parse_form_data(environ(content_type, body))
+    forms, files = km.parse_form_data(environ(content_type, body))
     ref_forms, ref_files = multipart.parse_form_data(environ(content_type, body))
     assert forms.dict == ref_forms.dict
     assert {k: [(p.filename, p.raw) for p in v] for k, v in files.dict.items()} == {
@@ -122,26 +122,26 @@ def test_parse_form_data_urlencoded_without_limits() -> None:
             env = environ("application/x-www-form-urlencoded", b"a=1&b=2&a=3")
             if not known_length:
                 del env["CONTENT_LENGTH"]
-            forms, _ = fm.parse_form_data(env, memory_limit=limit, part_limit=limit)
+            forms, _ = km.parse_form_data(env, memory_limit=limit, part_limit=limit)
             assert forms.getall("a") == ["1", "3"]
 
 
 def test_parse_form_data_strict_raises() -> None:
-    with pytest.raises(fm.ParserError):
-        fm.parse_form_data(
+    with pytest.raises(km.ParserError):
+        km.parse_form_data(
             environ("multipart/form-data; boundary=boundary", b"broken"), strict=True
         )
-    with pytest.raises(fm.StrictParserError):
-        fm.parse_form_data(environ("text/plain", b""), strict=True)
+    with pytest.raises(km.StrictParserError):
+        km.parse_form_data(environ("text/plain", b""), strict=True)
 
 
 def test_is_form_request() -> None:
-    assert fm.is_form_request({"CONTENT_TYPE": "Multipart/Form-Data; boundary=x"})
-    assert not fm.is_form_request({"CONTENT_TYPE": "text/plain"})
+    assert km.is_form_request({"CONTENT_TYPE": "Multipart/Form-Data; boundary=x"})
+    assert not km.is_form_request({"CONTENT_TYPE": "text/plain"})
 
 
 def test_multidict() -> None:
-    md = fm.MultiDict(a=1)
+    md = km.MultiDict(a=1)
     md["a"] = 2
     md.append("b", 3)
     assert md["a"] == 2
@@ -153,9 +153,9 @@ def test_multidict() -> None:
 
 
 def test_quote_helpers() -> None:
-    assert fm.header_quote("token") == "token"
-    assert fm.header_quote('a "b"') == '"a \\"b\\""'
-    assert fm.content_disposition_quote('a"\r\n') == '"a%22%0D%0A"'
+    assert km.header_quote("token") == "token"
+    assert km.header_quote('a "b"') == '"a \\"b\\""'
+    assert km.content_disposition_quote('a"\r\n') == '"a%22%0D%0A"'
 
 
 # MultipartPart (implemented in Rust)
@@ -185,7 +185,7 @@ def test_spooled_content(
 ) -> None:
     data = form(("small", None, b"value"), ("big", "big.bin", payload), ("tail", None, b"t"))
     stream = ChunkedReader(data, read_size, kind)
-    parts = fm.MultipartParser(stream, BOUNDARY, spool_limit=100_000, buffer_size=65536).parts()
+    parts = km.MultipartParser(stream, BOUNDARY, spool_limit=100_000, buffer_size=65536).parts()
     small, big, tail = parts
     assert small.is_buffered() and small.raw == b"value"
     assert not big.is_buffered()
@@ -196,7 +196,7 @@ def test_spooled_content(
 
 
 def test_in_memory_part_file_is_lazy() -> None:
-    part = fm.MultipartParser(io.BytesIO(form(("a", None, b"hello"))), BOUNDARY).get("a")
+    part = km.MultipartParser(io.BytesIO(form(("a", None, b"hello"))), BOUNDARY).get("a")
     assert part is not None
     assert part.raw == b"hello"
     assert part.raw is part.raw  # served from one cached bytes object
@@ -218,7 +218,7 @@ def test_part_attributes_and_headers() -> None:
         b"Content-Type: text/plain; charset=latin1\r\n\r\n"
         b"\xe4\r\n--boundary--"
     )
-    part = fm.MultipartParser(io.BytesIO(data), BOUNDARY).get("f")
+    part = km.MultipartParser(io.BytesIO(data), BOUNDARY).get("f")
     assert part is not None
     assert (part.name, part.filename, part.charset, part.size) == ("f", "a.txt", "latin1", 1)
     assert part.value == "\xe4"
@@ -235,7 +235,7 @@ def test_part_attributes_and_headers() -> None:
 
 def test_close_and_save_as(tmp_path: Path) -> None:
     data = form(("a", None, b"x" * 10), ("b", "b.bin", b"y" * 1000))
-    a, b = fm.MultipartParser(io.BytesIO(data), BOUNDARY, spool_limit=100).parts()
+    a, b = km.MultipartParser(io.BytesIO(data), BOUNDARY, spool_limit=100).parts()
     assert a.save_as(tmp_path / "a") == 10
     assert b.save_as(tmp_path / "b") == 1000
     assert (tmp_path / "a").read_bytes() == b"x" * 10
@@ -245,15 +245,15 @@ def test_close_and_save_as(tmp_path: Path) -> None:
     assert a.file is None and b.file is None
     assert not a.is_buffered()
     for part in (a, b):
-        with pytest.raises(fm.MultipartError):
+        with pytest.raises(km.MultipartError):
             part.raw
-        with pytest.raises(fm.MultipartError):
+        with pytest.raises(km.MultipartError):
             part.save_as(tmp_path / "c")
     a.close()  # closing twice is fine
 
 
 def test_tempfile_only_for_spooled_parts(monkeypatch: pytest.MonkeyPatch) -> None:
-    from fast_multipart import _multipart
+    from kirimi import _multipart
 
     created = []
 
@@ -263,7 +263,7 @@ def test_tempfile_only_for_spooled_parts(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(_multipart, "_temporary_file", factory)
     data = form(("a", None, b"x" * 10), ("b", None, b"y" * 1000))
-    a, b = fm.MultipartParser(io.BytesIO(data), BOUNDARY, spool_limit=100).parts()
+    a, b = km.MultipartParser(io.BytesIO(data), BOUNDARY, spool_limit=100).parts()
     assert len(created) == 1
     assert b.file is created[0]
     assert b.raw == b"y" * 1000
@@ -271,9 +271,9 @@ def test_tempfile_only_for_spooled_parts(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_limit_errors_stop_iteration() -> None:
     data = form(("a", None, b"x" * 1000), ("b", None, b"y" * 1000))
-    parser = fm.MultipartParser(io.BytesIO(data), BOUNDARY, memory_limit=1500)
+    parser = km.MultipartParser(io.BytesIO(data), BOUNDARY, memory_limit=1500)
     seen = []
-    with pytest.raises(fm.ParserLimitReached):
+    with pytest.raises(km.ParserLimitReached):
         for part in parser:
             seen.append(part.name)
     assert seen == ["a"]
@@ -281,14 +281,14 @@ def test_limit_errors_stop_iteration() -> None:
 
 
 def test_invalid_chunk_type() -> None:
-    with pytest.raises(fm.ParserStateError):
-        list(fm.MultipartParser(ChunkedReader(form(), 10, str), BOUNDARY))  # ty: ignore[invalid-argument-type]
+    with pytest.raises(km.ParserStateError):
+        list(km.MultipartParser(ChunkedReader(form(), 10, str), BOUNDARY))  # ty: ignore[invalid-argument-type]
 
 
 def test_multipart_part_compat_constructor() -> None:
-    segment = fm.PushMultipartParser(b"boundary").parse(form(("a", "f.txt", b"")))[0]
-    assert isinstance(segment, fm.MultipartSegment)
-    part = fm.MultipartPart(segment, memfile_limit=4, charset="latin1")
+    segment = km.PushMultipartParser(b"boundary").parse(form(("a", "f.txt", b"")))[0]
+    assert isinstance(segment, km.MultipartSegment)
+    part = km.MultipartPart(segment, memfile_limit=4, charset="latin1")
     part._write(b"ab")
     part._write(bytearray(b"cd"))
     assert part.is_buffered()
@@ -304,7 +304,7 @@ def test_multipart_part_compat_constructor() -> None:
 def test_parser_is_lazy() -> None:
     data = form(("a", None, b"1"), ("b", None, b"2"), ("c", None, b"3"))
     stream = ChunkedReader(data, 60, bytes)
-    parser = fm.MultipartParser(stream, BOUNDARY, buffer_size=60)
+    parser = km.MultipartParser(stream, BOUNDARY, buffer_size=60)
     assert stream.stream.tell() == 0  # nothing read before iterating
     a = parser.get("a")
     assert a is not None and a.value == "1"
@@ -315,7 +315,7 @@ def test_parser_is_lazy() -> None:
 
 def test_parser_iteration_is_cached_and_shared() -> None:
     data = form(("a", None, b"1"), ("b", None, b"2"), ("a", None, b"3"))
-    parser = fm.MultipartParser(ChunkedReader(data, 50, bytes), BOUNDARY, buffer_size=50)
+    parser = km.MultipartParser(ChunkedReader(data, 50, bytes), BOUNDARY, buffer_size=50)
     first = iter(parser)
     a = next(first)
     second = iter(parser)
@@ -327,7 +327,7 @@ def test_parser_iteration_is_cached_and_shared() -> None:
     assert [p.value for p in parser.get_all("a")] == ["1", "3"]
 
 
-@pytest.mark.parametrize("module", [fm, multipart], ids=["fast_multipart", "multipart"])
+@pytest.mark.parametrize("module", [km, multipart], ids=["kirimi", "multipart"])
 def test_parser_errors_surface_when_iterating(module: ModuleType) -> None:
     parser = module.MultipartParser(io.BytesIO(b""), "")  # invalid boundary
     with pytest.raises(module.MultipartError):
@@ -346,7 +346,7 @@ def test_parser_errors_surface_when_iterating(module: ModuleType) -> None:
     ],
 )
 def test_parser_limits_match_reference(kwargs: _ParserOptions) -> None:
-    ours = fm.MultipartParser(io.BytesIO(), BOUNDARY, **kwargs)
+    ours = km.MultipartParser(io.BytesIO(), BOUNDARY, **kwargs)
     ref = multipart.MultipartParser(io.BytesIO(), BOUNDARY, **kwargs)
     for name in ("spool_limit", "memory_limit", "disk_limit", "part_limit", "partsize_limit"):
         expected = getattr(ref, name)
@@ -355,7 +355,7 @@ def test_parser_limits_match_reference(kwargs: _ParserOptions) -> None:
 
 def test_parser_attributes() -> None:
     stream = io.BytesIO(form(("a", None, b"x")))
-    parser = fm.MultipartParser(stream, BOUNDARY, charset="latin1", buffer_size=7)
+    parser = km.MultipartParser(stream, BOUNDARY, charset="latin1", buffer_size=7)
     assert (parser.stream, parser.boundary, parser.charset, parser.buffer_size) == (
         stream,
         BOUNDARY,
@@ -364,12 +364,12 @@ def test_parser_attributes() -> None:
     )
     parser.part_limit = 0
     assert parser.part_limit == 0
-    with pytest.raises(fm.ParserLimitReached):
+    with pytest.raises(km.ParserLimitReached):
         list(parser)
 
 
 def test_parser_subclass() -> None:
-    class Parser(fm.MultipartParser):
+    class Parser(km.MultipartParser):
         extra: int
 
         def names(self) -> list[str]:

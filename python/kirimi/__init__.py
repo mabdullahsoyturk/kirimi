@@ -6,7 +6,7 @@ library: :class:`PushMultipartParser` is a non-blocking (sans-IO) parser,
 memory or on disk, and :func:`parse_form_data` handles WSGI environments.
 """
 
-from ._fast_multipart import (
+from ._kirimi import (
     MultipartError,
     MultipartSegment,
     ParserError,
@@ -17,7 +17,7 @@ from ._fast_multipart import (
     header_unquote,
     parse_content_disposition,
 )
-from ._fast_multipart import (
+from ._kirimi import (
     __version__ as __version__,
 )
 from ._multipart import (

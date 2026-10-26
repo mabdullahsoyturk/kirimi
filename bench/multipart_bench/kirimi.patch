@@ -6,7 +6,7 @@ index 9c6dae4..9329bec 100644
    * Used in [Bottle](https://pypi.org/project/bottle/), [LiteStar](https://litestar.dev/), [Zope](https://zope.readthedocs.io/) and others.
    * [CPython docs](https://docs.python.org/3.12/library/cgi.html) recommend it as a `cgi.FieldStorage` replacement.
    * Disclaimer: I am the author and maintainer of this library.
-+* fast-multipart v{{ package_version("fast-multipart") }}
++* kirimi v{{ package_version("kirimi") }}
 +  * Written in Rust (PyO3), with an API compatible with `multipart`.
  * [werkzeug](https://pypi.org/project/Werkzeug/) v{{ package_version("Werkzeug") }}
    * Used in [Flask](https://pypi.org/project/Flask/) and others.
@@ -20,22 +20,22 @@ index 8bce255..fd04485 100644
      multipart_blocking = None
  
 +try:
-+    import fast_multipart
++    import kirimi
 +
 +    @add_parser
-+    def fast_multipart_sansio(scenario: Scenario):
++    def kirimi_sansio(scenario: Scenario):
 +        read = scenario.payload.read
 +        chunksize = scenario.chunksize
-+        with fast_multipart.PushMultipartParser(scenario.boundary) as parser:
++        with kirimi.PushMultipartParser(scenario.boundary) as parser:
 +            parse = parser.parse
 +            while not parser.closed:
 +                for event in parse(read(chunksize)):
 +                    pass
 +
 +    @add_parser
-+    def fast_multipart_blocking(scenario: Scenario):
++    def kirimi_blocking(scenario: Scenario):
 +        list(
-+            fast_multipart.MultipartParser(
++            kirimi.MultipartParser(
 +                scenario.payload,
 +                boundary=scenario.boundary,
 +                buffer_size=scenario.chunksize,
@@ -45,8 +45,8 @@ index 8bce255..fd04485 100644
 +
 +
 +except ImportError:
-+    fast_multipart_sansio = None
-+    fast_multipart_blocking = None
++    kirimi_sansio = None
++    kirimi_blocking = None
 +
  try:
      from django.http.multipartparser import MultiPartParser
@@ -55,7 +55,7 @@ index 8bce255..fd04485 100644
  
  parser_table = {
      "multipart": [multipart_blocking, multipart_sansio],
-+    "fast-multipart": [fast_multipart_blocking, fast_multipart_sansio],
++    "kirimi": [kirimi_blocking, kirimi_sansio],
      "python-multipart": [starlette_blocking, starlette_sansio],
      "werkzeug": [werkzeug_blocking, werkzeug_sansio],
      "django": [django_blocking, None],

@@ -1,5 +1,5 @@
 [package]
-name = "fast-multipart-fuzz"
+name = "kirimi-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-fast-multipart-core = { path = "../crates/core", features = ["fuzzing"] }
+kirimi-core = { path = "../crates/core", features = ["fuzzing"] }
 
 # Not part of the main workspace, so that it builds with nightly flags only.
 [workspace]

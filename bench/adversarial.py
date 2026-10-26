@@ -13,7 +13,7 @@ from types import ModuleType
 import multipart
 from quick import BOUNDARY, CHUNK_SIZE, Payload
 
-import fast_multipart
+import kirimi
 
 
 def throughput(module: ModuleType, data: bytes, rounds: int = 5) -> float:
@@ -41,7 +41,7 @@ def main() -> None:
             pattern = delimiter[:-1]
             label = "last byte missing"
         data = Payload().field("f", "f.bin").pattern(bytes(pattern), 1 << 20).end().buf.getvalue()
-        for module in (multipart, fast_multipart):
+        for module in (multipart, kirimi):
             mbs = throughput(module, data)
             if mbs < worst.get(module.__name__, (float("inf"),))[0]:
                 worst[module.__name__] = (mbs, label)

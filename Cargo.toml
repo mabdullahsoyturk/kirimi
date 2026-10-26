@@ -10,7 +10,7 @@ license = "MIT"
 
 [workspace.dependencies]
 memchr = "2.8"
-fast-multipart-core = { path = "crates/core" }
+kirimi-core = { path = "crates/core" }
 
 [profile.release]
 lto = "fat"

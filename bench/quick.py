@@ -20,7 +20,7 @@ from typing import Self
 
 import multipart
 
-import fast_multipart
+import kirimi
 
 BOUNDARY = b"------------------------WqclBHaXe8KIsoSum4zfZ6"
 CHUNK_SIZE = 2**16
@@ -155,11 +155,11 @@ def measure(func: Runner, data: bytes, min_time: float = 0.5, rounds: int = 5) -
 def main(patterns: list[str]) -> None:
     parsers = [
         ("multipart", "non-blocking", sansio(multipart)),
-        ("fast_multipart", "non-blocking", sansio(fast_multipart)),
+        ("kirimi", "non-blocking", sansio(kirimi)),
         ("multipart", "blocking", blocking(multipart)),
-        ("fast_multipart", "blocking", blocking(fast_multipart)),
+        ("kirimi", "blocking", blocking(kirimi)),
     ]
-    print(f"{'scenario':<16} {'mode':<13} {'multipart':>14} {'fast_multipart':>16} {'speedup':>8}")
+    print(f"{'scenario':<16} {'mode':<13} {'multipart':>14} {'kirimi':>16} {'speedup':>8}")
     for name, payload in scenarios():
         if patterns and not any(fnmatch.fnmatch(name, p) for p in patterns):
             continue
@@ -169,7 +169,7 @@ def main(patterns: list[str]) -> None:
             for parser_name, parser_mode, func in parsers:
                 if parser_mode == mode:
                     results[parser_name] = len(data) / measure(func, data) / 2**20
-            ref, ours = results["multipart"], results["fast_multipart"]
+            ref, ours = results["multipart"], results["kirimi"]
             print(
                 f"{name:<16} {mode:<13} {ref:>9.1f} MB/s {ours:>11.1f} MB/s {ours / ref:>7.2f}x",
                 flush=True,

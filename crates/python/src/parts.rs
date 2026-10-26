@@ -10,7 +10,7 @@
 
 use std::collections::VecDeque;
 
-use fast_multipart_core as mp;
+use kirimi_core as mp;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
@@ -151,7 +151,7 @@ impl Piece {
 
 /// A fully parsed multipart part with access to its headers, metadata and
 /// memory- or disk-buffered content.
-#[pyclass(module = "fast_multipart", name = "MultipartPart", subclass, dict)]
+#[pyclass(module = "kirimi", name = "MultipartPart", subclass, dict)]
 pub struct Part {
     /// Part name.
     #[pyo3(get, set)]
@@ -605,9 +605,8 @@ impl mp::Sink for SpoolSink<'_, '_> {
 /// replaced (e.g. in tests).
 fn temporary_file_factory(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     static MODULE: PyOnceLock<Py<PyModule>> = PyOnceLock::new();
-    let module = MODULE.get_or_try_init(py, || {
-        py.import("fast_multipart._multipart").map(Bound::unbind)
-    })?;
+    let module =
+        MODULE.get_or_try_init(py, || py.import("kirimi._multipart").map(Bound::unbind))?;
     module.bind(py).getattr(intern!(py, "_temporary_file"))
 }
 
@@ -764,7 +763,7 @@ fn limit_or(limit: Option<Limit>, default: Limit) -> Limit {
 /// Parts up to `spool_limit` bytes are buffered in memory and count towards
 /// `memory_limit`. Larger parts are spooled to temporary files and count
 /// towards `disk_limit`.
-#[pyclass(module = "fast_multipart", name = "MultipartParser", subclass, dict)]
+#[pyclass(module = "kirimi", name = "MultipartParser", subclass, dict)]
 pub struct MultipartParser {
     /// A readable byte stream with a `read(size)` method.
     #[pyo3(get, set)]
@@ -995,7 +994,7 @@ impl MultipartParser {
 
 /// Iterator returned by `MultipartParser.__iter__`: first the parts parsed so
 /// far, then new ones.
-#[pyclass(module = "fast_multipart", name = "_PartIterator")]
+#[pyclass(module = "kirimi", name = "_PartIterator")]
 pub struct PartIterator {
     parser: Py<MultipartParser>,
     index: usize,

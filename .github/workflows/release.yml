@@ -77,7 +77,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           version=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "fast-multipart-python") | .version')
+            | jq -r '.packages[] | select(.name == "kirimi-python") | .version')
           test "v$version" = "$GITHUB_REF_NAME" || {
             echo "::error::Tag $GITHUB_REF_NAME does not match version $version"
             exit 1

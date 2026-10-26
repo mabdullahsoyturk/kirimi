@@ -14,11 +14,11 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-import fast_multipart as fm
+import kirimi as km
 
 BOUNDARY = b"----b0undary"
 
-# Errors where fast_multipart is stricter than multipart on purpose, because
+# Errors where kirimi is stricter than multipart on purpose, because
 # multipart's result depends on how the input is split into chunks:
 # - Bare LF in a segment header line is always rejected. multipart accepts it
 #   in the middle of a line if a CRLF follows in the same chunk.
@@ -30,11 +30,11 @@ KNOWN_DEVIATIONS = {
 }
 
 # Errors that multipart raises depending on how the input is split, where
-# fast_multipart does not:
+# kirimi does not:
 # - multipart counts the CR of a header line's CRLF towards the length limit
 #   while the LF has not arrived yet.
 # For these, multipart is re-run on the input in one piece, which must then
-# agree with fast_multipart.
+# agree with kirimi.
 CHUNK_DEPENDENT_IN_MULTIPART = {"Maximum segment header length exceeded"}
 
 
@@ -138,14 +138,14 @@ def run(module: ModuleType, data: bytes, sizes: list[int], **kwargs: object) -> 
                         )
     except multipart.MultipartError as err:
         return ("error", type(err).__name__, err.args[0])
-    except fm.MultipartError as err:
+    except km.MultipartError as err:
         return ("error", type(err).__name__, err.args[0])
     return ("ok", parts)
 
 
 def check(data: bytes, sizes: list[int], **kwargs: object) -> None:
     expected = run(multipart, data, sizes, **kwargs)
-    actual = run(fm, data, sizes, **kwargs)
+    actual = run(km, data, sizes, **kwargs)
     if is_error(actual) and actual[2] in KNOWN_DEVIATIONS:
         return
     if is_error(expected) and expected[2] in CHUNK_DEPENDENT_IN_MULTIPART and actual != expected:
@@ -171,9 +171,9 @@ def test_differential_limits(data: bytes, sizes: list[int]) -> None:
 @settings(max_examples=500, deadline=None)
 @given(multipart_bodies())
 def test_chunking_does_not_matter(data: bytes) -> None:
-    whole = run(fm, data, [])
+    whole = run(km, data, [])
     for size in (1, 2, 3, 7):
-        assert run(fm, data, [size]) == whole
+        assert run(km, data, [size]) == whole
 
 
 @pytest.mark.parametrize(
@@ -205,9 +205,9 @@ header_values = st.text(
 def test_parse_options_header(value: str) -> None:
     for prefix in ("", "form-data; ", "text/plain;"):
         header = prefix + value
-        assert fm.parse_options_header(header) == multipart.parse_options_header(header)
-        assert fm.parse_options_header(
-            header, unquote=fm.content_disposition_unquote
+        assert km.parse_options_header(header) == multipart.parse_options_header(header)
+        assert km.parse_options_header(
+            header, unquote=km.content_disposition_unquote
         ) == multipart.parse_options_header(header, unquote=multipart.content_disposition_unquote)
 
 
@@ -215,8 +215,8 @@ def test_parse_options_header(value: str) -> None:
 @given(header_values, st.booleans())
 def test_unquote(value: str, filename: bool) -> None:
     for v in (value, '"' + value + '"'):
-        assert fm.header_unquote(v, filename) == multipart.header_unquote(v, filename)
-        assert fm.content_disposition_unquote(v, filename) == multipart.content_disposition_unquote(
+        assert km.header_unquote(v, filename) == multipart.header_unquote(v, filename)
+        assert km.content_disposition_unquote(v, filename) == multipart.content_disposition_unquote(
             v, filename
         )
 
@@ -226,7 +226,7 @@ def test_unquote(value: str, filename: bool) -> None:
 def test_parse_content_disposition(value: str) -> None:
     for prefix in ("", 'form-data; name="', "form-data; name="):
         header = prefix + value
-        assert fm.parse_content_disposition(header) == multipart.parse_content_disposition(header)
+        assert km.parse_content_disposition(header) == multipart.parse_content_disposition(header)
 
 
 # Blocking parser
@@ -256,7 +256,7 @@ def run_blocking(
             )
             for p in parts
         ]
-    except (multipart.MultipartError, fm.MultipartError) as err:
+    except (multipart.MultipartError, km.MultipartError) as err:
         return ("error", type(err).__name__, err.args[0])
 
 
@@ -275,7 +275,7 @@ def test_differential_blocking(
     if memory_limit is not None:
         kwargs["memory_limit"] = memory_limit
     expected = run_blocking(multipart, data, read_size, **kwargs)
-    actual = run_blocking(fm, data, read_size, **kwargs)
+    actual = run_blocking(km, data, read_size, **kwargs)
     if is_error(actual) and actual[2] in KNOWN_DEVIATIONS:
         return
     if is_error(expected) and expected[2] in CHUNK_DEPENDENT_IN_MULTIPART and actual != expected:
