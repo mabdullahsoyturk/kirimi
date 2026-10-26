@@ -595,6 +595,7 @@ fn _parse_options_header(header: &str, mode: u8) -> (String, Option<Vec<(String,
 #[pymodule]
 fn _fast_multipart(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<PushParser>()?;
     m.add_class::<Segment>()?;
     m.add_class::<parts::Part>()?;

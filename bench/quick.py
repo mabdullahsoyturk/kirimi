@@ -14,6 +14,9 @@ import io
 import string
 import sys
 import time
+from collections.abc import Callable, Iterator
+from types import ModuleType
+from typing import Self
 
 import multipart
 
@@ -23,15 +26,18 @@ BOUNDARY = b"------------------------WqclBHaXe8KIsoSum4zfZ6"
 CHUNK_SIZE = 2**16
 SPOOL_LIMIT = 1024 * 500
 
+#: Parses a whole payload from a stream.
+Runner = Callable[[io.BytesIO], None]
+
 
 class Payload:
-    def __init__(self):
+    def __init__(self) -> None:
         self.buf = io.BytesIO()
 
-    def write(self, data):
+    def write(self, data: str | bytes) -> None:
         self.buf.write(data.encode() if isinstance(data, str) else data)
 
-    def field(self, name, filename=None):
+    def field(self, name: str, filename: str | None = None) -> Self:
         if self.buf.tell():
             self.write(b"\r\n")
         self.write(b"--%s\r\n" % BOUNDARY)
@@ -41,19 +47,19 @@ class Payload:
         self.write(f"Content-Disposition: {disposition}\r\n\r\n")
         return self
 
-    def pattern(self, pattern, size):
+    def pattern(self, pattern: str | bytes, size: int) -> Self:
         pattern = pattern.encode() if isinstance(pattern, str) else pattern
         self.write(pattern * (size // len(pattern)) + pattern[: size % len(pattern)])
         return self
 
-    def end(self):
+    def end(self) -> Self:
         if self.buf.tell():
             self.write(b"\r\n")
         self.write(b"--%s--\r\n" % BOUNDARY)
         return self
 
 
-def scenarios():
+def scenarios() -> Iterator[tuple[str, Payload]]:
     yield "empty", Payload().end()
 
     p = Payload()
@@ -88,8 +94,8 @@ def scenarios():
     yield "worstcase_junk", p
 
 
-def sansio(module):
-    def run(stream):
+def sansio(module: ModuleType) -> Runner:
+    def run(stream: io.BytesIO) -> None:
         read = stream.read
         with module.PushMultipartParser(BOUNDARY) as parser:
             parse = parser.parse
@@ -100,8 +106,8 @@ def sansio(module):
     return run
 
 
-def blocking(module):
-    def run(stream):
+def blocking(module: ModuleType) -> Runner:
+    def run(stream: io.BytesIO) -> None:
         list(
             module.MultipartParser(
                 stream, boundary=BOUNDARY, buffer_size=CHUNK_SIZE, spool_limit=SPOOL_LIMIT
@@ -111,16 +117,16 @@ def blocking(module):
     return run
 
 
-def baseline(stream):
+def baseline(stream: io.BytesIO) -> None:
     read = stream.read
     for _ in iter(lambda: read(CHUNK_SIZE), b""):
         pass
 
 
-def measure(func, data, min_time=0.5, rounds=5):
+def measure(func: Runner, data: bytes, min_time: float = 0.5, rounds: int = 5) -> float:
     """Best time per call, with the stream reading overhead subtracted."""
 
-    def best(f):
+    def best(f: Runner) -> float:
         stream = io.BytesIO(data)
         seek = stream.seek
         n, elapsed = 1, 0.0
@@ -146,7 +152,7 @@ def measure(func, data, min_time=0.5, rounds=5):
     return max(best(func) - best(baseline), 1e-9)
 
 
-def main(patterns):
+def main(patterns: list[str]) -> None:
     parsers = [
         ("multipart", "non-blocking", sansio(multipart)),
         ("fast_multipart", "non-blocking", sansio(fast_multipart)),

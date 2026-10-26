@@ -1,0 +1,36 @@
+# Git hooks, run with prek (https://github.com/j178/prek):
+#
+#     uv run prek install          # once, installs the pre-commit hook
+#     uv run prek run --all-files  # manually
+#
+# ruff and ty run from the `lint` dependency group, so their versions come
+# from uv.lock.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --locked --only-group lint ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --locked --only-group lint ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ty
+        name: ty check
+        # Does not need the compiled extension (see `tool.ty.environment` in
+        # pyproject.toml).
+        entry: uv run --locked --only-group lint ty check
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: 01886c8a910c64595c47f186ca1ffc0b77fa5458 # frozen: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]

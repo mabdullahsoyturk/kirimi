@@ -4,20 +4,39 @@ build-backend = "maturin"
 
 [project]
 name = "fast-multipart"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Fast streaming multipart/form-data parser, written in Rust"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Rust",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Free Threading :: 2 - Beta",
     "Topic :: Internet :: WWW/HTTP",
 ]
 
 [dependency-groups]
-dev = ["maturin>=1.9,<2", "pytest", "hypothesis", "multipart==2.0.1"]
+test = ["pytest", "hypothesis", "multipart==2.0.1"]
+dev = ["maturin>=1.9,<2", { include-group = "test" }]
+# The test dependencies are needed by ty.
+lint = ["prek", "ruff", "ty", { include-group = "test" }]
+
+[tool.uv]
+default-groups = ["dev", "lint"]
+# Rebuild the extension module on `uv sync`/`uv run` when the Rust code changes.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "crates/**/Cargo.toml" },
+    { file = "crates/**/*.rs" },
+]
 
 [tool.maturin]
 manifest-path = "crates/python/Cargo.toml"
@@ -26,3 +45,22 @@ module-name = "fast_multipart._fast_multipart"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["python"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN"]
+# Line length is left to the formatter.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests access attributes for their side effects (errors).
+"tests/*" = ["B018"]
+
+[tool.ty.environment]
+# Resolve `fast_multipart` from the source tree, so type checking does not
+# need the compiled extension.
+root = ["python", "."]

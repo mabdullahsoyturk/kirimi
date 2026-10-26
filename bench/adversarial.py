@@ -8,14 +8,15 @@ numbers are higher than in quick.py.
 """
 
 import time
+from types import ModuleType
 
 import multipart
-
-import fast_multipart
 from quick import BOUNDARY, CHUNK_SIZE, Payload
 
+import fast_multipart
 
-def throughput(module, data, rounds=5):
+
+def throughput(module: ModuleType, data: bytes, rounds: int = 5) -> float:
     chunks = [data[i : i + CHUNK_SIZE] for i in range(0, len(data), CHUNK_SIZE)]
     best = float("inf")
     for _ in range(rounds):
@@ -28,7 +29,7 @@ def throughput(module, data, rounds=5):
     return len(data) / best / 2**20
 
 
-def main():
+def main() -> None:
     delimiter = b"\r\n--" + BOUNDARY
     worst = {}
     for i in range(len(delimiter) + 1):

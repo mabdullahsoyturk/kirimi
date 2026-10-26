@@ -1,13 +1,27 @@
 import asyncio
 import io
 import math
+from typing import TypedDict, Unpack
 
 import pytest
 
 import fast_multipart as fm
 
+Event = fm.MultipartSegment | bytes | None
+Limit = int | float | None
 
-def form(*fields, boundary=b"boundary"):
+
+class PushOptions(TypedDict, total=False):
+    content_length: int
+    max_header_size: Limit
+    max_header_count: Limit
+    max_segment_size: Limit
+    max_segment_count: Limit
+    header_charset: str
+    strict: bool
+
+
+def form(*fields: tuple[str, str | None, bytes], boundary: bytes = b"boundary") -> bytes:
     """Build a multipart body from (name, filename, data) tuples."""
     out = b""
     for name, filename, data in fields:
@@ -19,7 +33,9 @@ def form(*fields, boundary=b"boundary"):
     return out + b"--" + boundary + b"--\r\n"
 
 
-def parse_events(data, chunk_size=None, **kwargs):
+def parse_events(
+    data: bytes, chunk_size: int | None = None, **kwargs: Unpack[PushOptions]
+) -> list[Event]:
     parser = fm.PushMultipartParser(b"boundary", **kwargs)
     chunk_size = chunk_size or max(1, len(data))
     events = []
@@ -29,7 +45,7 @@ def parse_events(data, chunk_size=None, **kwargs):
     return events
 
 
-def test_events():
+def test_events() -> None:
     events = parse_events(form(("a", None, b"hello"), ("b", "b.txt", b"world")))
     assert [type(e).__name__ for e in events] == [
         "MultipartSegment",
@@ -40,13 +56,14 @@ def test_events():
         "NoneType",
     ]
     a, b = events[0], events[3]
+    assert isinstance(a, fm.MultipartSegment) and isinstance(b, fm.MultipartSegment)
     assert (a.name, a.filename, a.size, a.complete) == ("a", None, 5, True)
     assert (b.name, b.filename, b.size) == ("b", "b.txt", 5)
     assert events[1] == b"hello"
     assert events[4] == b"world"
 
 
-def test_segment_api():
+def test_segment_api() -> None:
     data = (
         b"--boundary\r\n"
         b'Content-Disposition: form-data; name="a"\r\n'
@@ -55,6 +72,7 @@ def test_segment_api():
         b"\r\nxyz\r\n--boundary--"
     )
     segment = parse_events(data)[0]
+    assert isinstance(segment, fm.MultipartSegment)
     assert segment.headerlist == [
         ("Content-Disposition", 'form-data; name="a"'),
         ("Content-Type", "Text/Plain; charset=latin1"),
@@ -72,11 +90,12 @@ def test_segment_api():
         segment["missing"]
 
 
-def test_size_while_incomplete():
+def test_size_while_incomplete() -> None:
     parser = fm.PushMultipartParser(b"boundary")
     segment, data = parser.parse(
         b'--boundary\r\nContent-Disposition: form-data; name="a"\r\n\r\nxyz'
     )
+    assert isinstance(segment, fm.MultipartSegment)
     assert data == b"xyz"
     assert segment.bytes_received == 3
     assert not segment.complete
@@ -84,28 +103,28 @@ def test_size_while_incomplete():
         segment.size
 
 
-def test_zero_copy_for_whole_chunks():
+def test_zero_copy_for_whole_chunks() -> None:
     parser = fm.PushMultipartParser(b"boundary")
     parser.parse(b'--boundary\r\nContent-Disposition: form-data; name="a"\r\n\r\n')
     chunk = b"x" * 100_000
     assert parser.parse(chunk)[0] is chunk
 
 
-def test_bytearray_input():
+def test_bytearray_input() -> None:
     events = fm.PushMultipartParser(b"boundary").parse(bytearray(form(("a", None, b"x"))))
     assert events[1] == b"x"
     assert type(events[1]) is bytes
 
 
-def test_invalid_chunk_type():
+def test_invalid_chunk_type() -> None:
     parser = fm.PushMultipartParser(b"boundary")
     with pytest.raises(fm.ParserStateError):
-        parser.parse("text")
+        parser.parse("text")  # ty: ignore[invalid-argument-type]
     assert parser.closed
     assert isinstance(parser.error, fm.ParserStateError)
 
 
-def test_close_and_reuse():
+def test_close_and_reuse() -> None:
     parser = fm.PushMultipartParser(b"boundary")
     parser.parse(form(("a", None, b"x")))
     assert not parser.closed
@@ -115,12 +134,12 @@ def test_close_and_reuse():
         parser.parse(b"more")
 
 
-def test_incomplete_stream():
+def test_incomplete_stream() -> None:
     with pytest.raises(fm.ParserError, match="Unexpected end"):
         parse_events(form(("a", None, b"x"))[:-5])
 
 
-def test_context_manager_skips_check_on_exception():
+def test_context_manager_skips_check_on_exception() -> None:
     with pytest.raises(KeyError):
         with fm.PushMultipartParser(b"boundary") as parser:
             parser.parse(b"--boundary\r\n")
@@ -129,14 +148,14 @@ def test_context_manager_skips_check_on_exception():
     assert parser.error is None
 
 
-def test_exception_hierarchy():
+def test_exception_hierarchy() -> None:
     assert issubclass(fm.MultipartError, ValueError)
     assert issubclass(fm.StrictParserError, fm.ParserError)
     assert fm.ParserLimitReached.http_status == 413
     assert fm.ParserError.__module__ == "fast_multipart"
 
 
-def test_limits():
+def test_limits() -> None:
     data = form(("a", None, b"0123456789"), ("b", None, b"x"))
     with pytest.raises(fm.ParserLimitReached, match="segment size"):
         parse_events(data, max_segment_size=9)
@@ -151,7 +170,7 @@ def test_limits():
     assert len(parse_events(data, max_segment_size=math.inf, max_segment_count=None)) == 6
 
 
-def test_limit_attributes():
+def test_limit_attributes() -> None:
     parser = fm.PushMultipartParser("boundary", max_segment_size=10)
     assert parser.boundary == b"boundary"
     assert parser.max_segment_size == 10
@@ -159,7 +178,7 @@ def test_limit_attributes():
     assert parser.max_header_size == 4096 + 128
 
 
-def test_strict_mode():
+def test_strict_mode() -> None:
     with pytest.raises(fm.StrictParserError):
         fm.PushMultipartParser(b"x" * 1025, strict=True)
     # A preamble is only rejected if the first chunk has no boundary.
@@ -173,16 +192,17 @@ def test_strict_mode():
         parser.parse(b"epilogue")
 
 
-def test_charsets():
+def test_charsets() -> None:
     data = form(("\xe4", None, b"x")).replace(b"\xc3\xa4", b"\xe4")
-    assert parse_events(data, header_charset="latin1")[0].name == "\xe4"
+    segment = parse_events(data, header_charset="latin1")[0]
+    assert isinstance(segment, fm.MultipartSegment) and segment.name == "\xe4"
     with pytest.raises(fm.ParserError, match="decode"):
         parse_events(data)
     with pytest.raises(fm.ParserError, match="Invalid charset"):
         fm.PushMultipartParser(b"boundary", header_charset="no-such-charset")
 
 
-def test_parse_blocking():
+def test_parse_blocking() -> None:
     data = form(("a", None, b"x" * 100_000), ("b", None, b"y"))
     parser = fm.PushMultipartParser(b"boundary", content_length=len(data))
     events = list(parser.parse_blocking(io.BytesIO(data + b"ignored").read, 1000))
@@ -190,13 +210,13 @@ def test_parse_blocking():
     assert parser.closed
 
 
-def test_parse_async():
+def test_parse_async() -> None:
     data = form(("a", None, b"x" * 100_000))
 
-    async def run():
+    async def run() -> list[Event]:
         stream = io.BytesIO(data)
 
-        async def read(size):
+        async def read(size: int) -> bytes:
             return stream.read(size)
 
         parser = fm.PushMultipartParser(b"boundary")
@@ -217,14 +237,14 @@ def test_parse_async():
     ids=["crlf", "lf", "bchar", "binary"],
 )
 @pytest.mark.parametrize("chunk_size", [1, 13, 4096, 1 << 20])
-def test_worst_case_payloads(payload, chunk_size):
+def test_worst_case_payloads(payload: bytes, chunk_size: int) -> None:
     if chunk_size == 1:
         payload = payload[:5000]
     events = parse_events(form(("f", "f.bin", payload)), chunk_size)
     assert b"".join(e for e in events if type(e) is bytes) == payload
 
 
-def test_junk_around_boundaries():
+def test_junk_around_boundaries() -> None:
     junk = bytes(range(32, 127)) * 10_000
     data = junk + b"\r\n" + form(("f", None, b"Content")) + junk
     events = parse_events(data, 4096)

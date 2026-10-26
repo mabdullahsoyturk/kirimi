@@ -176,19 +176,50 @@ streaming-form-data 2.1.0, emmett-core 1.4.6.
 
 ## Development
 
+Requires Rust (stable) and [uv](https://docs.astral.sh/uv/). Python 3.12 or
+newer is supported, including free-threaded builds.
+
 ```sh
-uv venv --python 3.12 .venv
-uv pip install --python .venv maturin pytest hypothesis multipart==2.0.1
-VIRTUAL_ENV=$PWD/.venv .venv/Scripts/maturin develop --release --uv
+uv sync                     # creates .venv, builds the extension (release mode)
+uv run pytest
 
 cargo test -p fast-multipart-core --features fuzzing
-cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all --check
-.venv/Scripts/python -m pytest
+uv run prek install         # once: run the git hooks on every commit
+uv run prek run --all-files # ruff check, ruff format, ty, detect-secrets
 ```
+
+The hooks are configured in `.pre-commit-config.yaml` and run with
+[prek](https://github.com/j178/prek). Python code is fully annotated (ruff's
+`ANN` rules) and checked with [ty](https://github.com/astral-sh/ty), including
+the stubs of the Rust extension in `_fast_multipart.pyi`. detect-secrets
+compares against `.secrets.baseline`; after reviewing a new finding, update it
+with `uvx detect-secrets scan --baseline .secrets.baseline`.
+
+`uv run` rebuilds the extension when Rust sources change (see `cache-keys` in
+`pyproject.toml`). Dependencies are locked in `uv.lock` and `Cargo.lock`; the
+version is set in `Cargo.toml` only.
 
 Clippy runs with the `pedantic` group enabled (see `Cargo.toml`), and the core
 crate forbids `unsafe` code.
+
+### CI and releases
+
+GitHub Actions workflows in `.github/workflows`:
+
+- `ci.yml` (pushes and pull requests): Rust formatting, Clippy and tests; the
+  prek hooks and a `uv.lock` check; pytest on Linux, macOS and Windows with Python 3.12,
+  3.15 and free-threaded 3.15.
+- `fuzz.yml` (weekly, or manually with a run time): 10 minutes per fuzz target,
+  crash inputs are uploaded as artifacts.
+- `release.yml` (`v*` tags, or manually to build only): wheels for Linux
+  (manylinux, musllinux), macOS and Windows on x86-64 and ARM64, and the sdist.
+  On a tag that matches the version, publishes to PyPI with trusted publishing
+  (needs a `pypi` environment in GitHub and the publisher set up on PyPI).
+
+Actions are pinned to commit hashes; Dependabot keeps them, the Cargo crates
+and `uv.lock` up to date.
 
 ### Fuzzing
 
@@ -229,10 +260,9 @@ priority on Linux. The runner does not, so results are noisier.
 ### Quick benchmarks
 
 ```sh
-cd bench
-../.venv/Scripts/python quick.py        # non-blocking and blocking, all scenarios
-../.venv/Scripts/python blocking.py     # blocking only, interleaved medians
-../.venv/Scripts/python adversarial.py  # near-miss delimiter worst cases
+uv run bench/quick.py        # non-blocking and blocking, all scenarios
+uv run bench/blocking.py     # blocking only, interleaved medians
+uv run bench/adversarial.py  # near-miss delimiter worst cases
 ```
 
 ## Design notes

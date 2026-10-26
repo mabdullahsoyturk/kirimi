@@ -6,6 +6,8 @@ segments, headers, body data and errors. Documented deviations are listed in
 """
 
 import io
+from collections.abc import Iterator
+from types import ModuleType
 
 import multipart
 import pytest
@@ -36,8 +38,9 @@ KNOWN_DEVIATIONS = {
 CHUNK_DEPENDENT_IN_MULTIPART = {"Maximum segment header length exceeded"}
 
 
-def is_error(result):
+def is_error(result: object) -> bool:
     return isinstance(result, tuple) and result[0] == "error"
+
 
 header_text = st.text(
     alphabet=st.sampled_from(list('abcXYZ019 ;="\\%-_/:.\t\xe4\u20ac')), max_size=30
@@ -51,7 +54,7 @@ body_bytes = st.lists(
 
 
 @st.composite
-def header_lines(draw):
+def header_lines(draw: st.DrawFn) -> bytes:
     name = draw(st.text(alphabet="abcxyz019-_", min_size=1, max_size=8))
     kind = draw(st.sampled_from(["disposition", "type", "length", "custom", "continuation"]))
     if kind == "disposition":
@@ -70,7 +73,7 @@ def header_lines(draw):
 
 
 @st.composite
-def multipart_bodies(draw):
+def multipart_bodies(draw: st.DrawFn) -> bytes:
     out = draw(st.sampled_from([b"", b"preamble\r\n", b"\r\n", b"x"]))
     for _ in range(draw(st.integers(0, 4))):
         out += b"--" + BOUNDARY + b"\r\n"
@@ -99,7 +102,7 @@ def multipart_bodies(draw):
     return out
 
 
-def chunked(data, sizes):
+def chunked(data: bytes, sizes: list[int]) -> Iterator[bytes]:
     pos, i = 0, 0
     while pos < len(data):
         size = sizes[i % len(sizes)] if sizes else len(data)
@@ -108,7 +111,7 @@ def chunked(data, sizes):
         i += 1
 
 
-def run(module, data, sizes, **kwargs):
+def run(module: ModuleType, data: bytes, sizes: list[int], **kwargs: object) -> tuple[object, ...]:
     """Parse and return a normalized result or the error."""
     parser = module.PushMultipartParser(BOUNDARY, **kwargs)
     parts = []
@@ -140,7 +143,7 @@ def run(module, data, sizes, **kwargs):
     return ("ok", parts)
 
 
-def check(data, sizes, **kwargs):
+def check(data: bytes, sizes: list[int], **kwargs: object) -> None:
     expected = run(multipart, data, sizes, **kwargs)
     actual = run(fm, data, sizes, **kwargs)
     if is_error(actual) and actual[2] in KNOWN_DEVIATIONS:
@@ -155,19 +158,19 @@ chunk_sizes = st.lists(st.integers(1, 64), max_size=5)
 
 @settings(max_examples=3000, suppress_health_check=[HealthCheck.too_slow], deadline=None)
 @given(multipart_bodies(), chunk_sizes, st.booleans())
-def test_differential(data, sizes, strict):
+def test_differential(data: bytes, sizes: list[int], strict: bool) -> None:
     check(data, sizes, strict=strict)
 
 
 @settings(max_examples=500, deadline=None)
 @given(multipart_bodies(), chunk_sizes)
-def test_differential_limits(data, sizes):
+def test_differential_limits(data: bytes, sizes: list[int]) -> None:
     check(data, sizes, max_header_count=2, max_header_size=40, max_segment_size=8)
 
 
 @settings(max_examples=500, deadline=None)
 @given(multipart_bodies())
-def test_chunking_does_not_matter(data):
+def test_chunking_does_not_matter(data: bytes) -> None:
     whole = run(fm, data, [])
     for size in (1, 2, 3, 7):
         assert run(fm, data, [size]) == whole
@@ -184,7 +187,7 @@ def test_chunking_does_not_matter(data):
         b"--" + BOUNDARY + b"\r\n Content-Disposition: form-data\r\n\r\n",
     ],
 )
-def test_edge_cases(data):
+def test_edge_cases(data: bytes) -> None:
     for strict in (False, True):
         for sizes in ([], [1], [5]):
             check(data, sizes, strict=strict)
@@ -192,12 +195,14 @@ def test_edge_cases(data):
 
 # Header helper functions
 
-header_values = st.text(alphabet=st.sampled_from(list('aZ09 ;="\\%-_/:.\t\n\xe4\u20ac*!')), max_size=40)
+header_values = st.text(
+    alphabet=st.sampled_from(list('aZ09 ;="\\%-_/:.\t\n\xe4\u20ac*!')), max_size=40
+)
 
 
 @settings(max_examples=3000)
 @given(header_values)
-def test_parse_options_header(value):
+def test_parse_options_header(value: str) -> None:
     for prefix in ("", "form-data; ", "text/plain;"):
         header = prefix + value
         assert fm.parse_options_header(header) == multipart.parse_options_header(header)
@@ -208,7 +213,7 @@ def test_parse_options_header(value):
 
 @settings(max_examples=3000)
 @given(header_values, st.booleans())
-def test_unquote(value, filename):
+def test_unquote(value: str, filename: bool) -> None:
     for v in (value, '"' + value + '"'):
         assert fm.header_unquote(v, filename) == multipart.header_unquote(v, filename)
         assert fm.content_disposition_unquote(v, filename) == multipart.content_disposition_unquote(
@@ -218,7 +223,7 @@ def test_unquote(value, filename):
 
 @settings(max_examples=3000)
 @given(header_values)
-def test_parse_content_disposition(value):
+def test_parse_content_disposition(value: str) -> None:
     for prefix in ("", 'form-data; name="', "form-data; name="):
         header = prefix + value
         assert fm.parse_content_disposition(header) == multipart.parse_content_disposition(header)
@@ -227,17 +232,28 @@ def test_parse_content_disposition(value):
 # Blocking parser
 
 
-def run_blocking(module, data, read_size, **kwargs):
+def run_blocking(
+    module: ModuleType, data: bytes, read_size: int, **kwargs: object
+) -> list[tuple[object, ...]] | tuple[str, str, str]:
     stream = io.BytesIO(data)
 
-    def read(n):
+    def read(n: int) -> bytes:
         return stream.read(min(n, read_size))
 
     reader = type("Reader", (), {"read": staticmethod(read)})()
     try:
         parts = module.MultipartParser(reader, BOUNDARY, **kwargs).parts()
         return [
-            (p.name, p.filename, p.charset, p.content_type, p.size, p.is_buffered(), p.raw, p.headerlist)
+            (
+                p.name,
+                p.filename,
+                p.charset,
+                p.content_type,
+                p.size,
+                p.is_buffered(),
+                p.raw,
+                p.headerlist,
+            )
             for p in parts
         ]
     except (multipart.MultipartError, fm.MultipartError) as err:
@@ -252,7 +268,9 @@ def run_blocking(module, data, read_size, **kwargs):
     st.sampled_from([1, 8, 64]),
     st.sampled_from([None, 30, 1000]),
 )
-def test_differential_blocking(data, read_size, spool_limit, buffer_size, memory_limit):
+def test_differential_blocking(
+    data: bytes, read_size: int, spool_limit: int, buffer_size: int, memory_limit: int | None
+) -> None:
     kwargs = dict(spool_limit=spool_limit, buffer_size=buffer_size)
     if memory_limit is not None:
         kwargs["memory_limit"] = memory_limit

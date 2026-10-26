@@ -7,12 +7,18 @@ bit 2: small limits) and three chunk-size bytes, followed by the body. See
 `check_parse` in crates/core/src/fuzzing.rs.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
 
 BOUNDARIES = [b"b", b"boundary", b"----WebKitFormBoundary7MA4YWxkTrZu0gW"]
 
 
-def form(boundary, fields, preamble=b"", epilogue=b"\r\n"):
+def form(
+    boundary: bytes,
+    fields: list[tuple[list[bytes], bytes]],
+    preamble: bytes = b"",
+    epilogue: bytes = b"\r\n",
+) -> bytes:
     out = preamble
     for headers, body in fields:
         out += b"--" + boundary + b"\r\n" + b"".join(h + b"\r\n" for h in headers) + b"\r\n"
@@ -20,7 +26,7 @@ def form(boundary, fields, preamble=b"", epilogue=b"\r\n"):
     return out + b"--" + boundary + b"--" + epilogue
 
 
-def parse_seeds():
+def parse_seeds() -> Iterator[tuple[str, bytes]]:
     for index, boundary in enumerate(BOUNDARIES):
         delimiter = b"\r\n--" + boundary
         bodies = [
@@ -51,28 +57,33 @@ def parse_seeds():
         for limits in (0, 4):
             for body_index, body in enumerate(bodies):
                 for sizes in (b"\xff\xff\xff", b"\x01\x02\x03", b"\x07\x0d\x40"):
-                    yield f"b{index}-l{limits}-{body_index}-{sizes.hex()}", (
-                        bytes([index | limits]) + sizes + body
+                    yield (
+                        f"b{index}-l{limits}-{body_index}-{sizes.hex()}",
+                        (bytes([index | limits]) + sizes + body),
                     )
 
 
-def search_seeds():
+def search_seeds() -> Iterator[tuple[str, bytes]]:
     yield "plain", b"\x08boundary" + b"x" * 100 + b"\r\n--boundary"
     yield "near_miss", b"\x08boundary" + b"\r\n--boundarX" * 20
     yield "crlf", b"\x01b" + b"\r\n" * 64 + b"\r\n--b"
 
 
-def header_seeds():
+def header_seeds() -> Iterator[tuple[str, bytes]]:
     yield "cd", b'form-data; name="a"; filename="b.txt"'
     yield "escaped", b'form-data; name="a\\"b"; filename="C:\\x\\y.txt"'
     yield "percent", b'form-data; name="a%22b%0D%0A"'
-    yield "options", b"Text/Plain; charset=UTF-8; x = \"y\"; junk"
-    yield "unicode", "form-data; name=\"\xe4\u20ac\"".encode()
+    yield "options", b'Text/Plain; charset=UTF-8; x = "y"; junk'
+    yield "unicode", 'form-data; name="\xe4\u20ac"'.encode()
 
 
-def main():
+def main() -> None:
     root = Path(__file__).parent / "corpus"
-    for target, seeds in (("parse", parse_seeds), ("search", search_seeds), ("headers", header_seeds)):
+    for target, seeds in (
+        ("parse", parse_seeds),
+        ("search", search_seeds),
+        ("headers", header_seeds),
+    ):
         directory = root / target
         directory.mkdir(parents=True, exist_ok=True)
         count = 0

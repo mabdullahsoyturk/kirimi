@@ -14,14 +14,16 @@ import sys
 import time
 
 import multipart
-
-import fast_multipart
 from quick import blocking, scenarios
 
+import fast_multipart
 
-def main(patterns, rounds=31):
+
+def main(patterns: list[str], rounds: int = 31) -> None:
     parsers = {"multipart": blocking(multipart), "fast_multipart": blocking(fast_multipart)}
-    print(f"{'scenario':<16} {'multipart':>12} {'fast_multipart':>15} {'speedup':>8}   (median per run)")
+    print(
+        f"{'scenario':<16} {'multipart':>12} {'fast_multipart':>15} {'speedup':>8}   (median per run)"
+    )
     for name, payload in scenarios():
         if patterns and not any(fnmatch.fnmatch(name, p) for p in patterns):
             continue
@@ -39,7 +41,9 @@ def main(patterns, rounds=31):
                 times[key].append((time.perf_counter() - start) / repeat)
         ref = statistics.median(times["multipart"])
         ours = statistics.median(times["fast_multipart"])
-        print(f"{name:<16} {ref * 1e6:9.1f} us {ours * 1e6:12.1f} us {ref / ours:7.2f}x", flush=True)
+        print(
+            f"{name:<16} {ref * 1e6:9.1f} us {ours * 1e6:12.1f} us {ref / ours:7.2f}x", flush=True
+        )
 
 
 if __name__ == "__main__":

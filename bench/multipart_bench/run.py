@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import IO
 
 REPOSITORY = "https://github.com/defnull/multipart_bench"
 COMMIT = "2f90d62043f5c921d8c90671f014e6aa72d8ebfb"
@@ -46,14 +47,14 @@ PARSERS = [
 ]
 
 
-def run(*args, cwd=None, stdout=None):
+def run(*args: object, cwd: Path | None = None, stdout: IO[bytes] | None = None) -> None:
     print("+", " ".join(str(a) for a in args), flush=True)
     # render_readme.py prints the README; keep it UTF-8 on Windows consoles.
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     subprocess.run([str(a) for a in args], cwd=cwd, check=True, stdout=stdout, env=env)
 
 
-def checkout(workdir: Path):
+def checkout(workdir: Path) -> None:
     if not (workdir / ".git").exists():
         run("git", "clone", "-c", "core.autocrlf=false", REPOSITORY, workdir)
     git = ["git", "-C", workdir, "-c", "core.autocrlf=false"]
@@ -69,7 +70,7 @@ def venv_python(workdir: Path) -> Path:
     return workdir / ".venv" / scripts / ("python.exe" if os.name == "nt" else "python")
 
 
-def install(workdir: Path, python_version: str, plots: bool):
+def install(workdir: Path, python_version: str, plots: bool) -> Path:
     python = venv_python(workdir)
     packages = RUN_REQUIREMENTS + PARSERS + (PLOT_REQUIREMENTS if plots else [])
     uv = shutil.which("uv")
@@ -77,7 +78,16 @@ def install(workdir: Path, python_version: str, plots: bool):
         if not python.exists():
             run(uv, "venv", "--python", python_version, workdir / ".venv")
         run(uv, "pip", "install", "--python", python, *packages)
-        run(uv, "pip", "install", "--python", python, "--reinstall-package", "fast-multipart", PROJECT)
+        run(
+            uv,
+            "pip",
+            "install",
+            "--python",
+            python,
+            "--reinstall-package",
+            "fast-multipart",
+            PROJECT,
+        )
     else:
         if not python.exists():
             run(sys.executable, "-m", "venv", workdir / ".venv")
@@ -86,13 +96,13 @@ def install(workdir: Path, python_version: str, plots: bool):
     return python
 
 
-def print_tables(readme: Path):
+def print_tables(readme: Path) -> None:
     for line in readme.read_text(encoding="utf8").splitlines():
         if line.startswith(("### Scenario", "|")):
             print(line)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--workdir", type=Path, default=HERE / "work")
     parser.add_argument("--python", default="3.12", help="Python version for the venv (uv only)")
@@ -116,7 +126,9 @@ def main():
         python = venv_python(workdir)
     else:
         checkout(workdir)
-        python = venv_python(workdir) if args.skip_install else install(workdir, args.python, args.plots)
+        python = (
+            venv_python(workdir) if args.skip_install else install(workdir, args.python, args.plots)
+        )
         if args.setup_only:
             return
         run(python, "run.py", "--profile", args.profile, *args.patterns, cwd=workdir)

@@ -4,12 +4,25 @@ Semantics and defaults follow the ``multipart`` library, so this module can be
 used as a drop-in replacement.
 """
 
+from __future__ import annotations
+
 import codecs
+import math
 import re
 import tempfile
-from collections.abc import MutableMapping
+from collections.abc import (
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Generator,
+    Iterable,
+    Iterator,
+    KeysView,
+    Mapping,
+    MutableMapping,
+)
 from io import BytesIO
-from typing import AsyncGenerator, Awaitable, Callable, Generator, Union
+from typing import TYPE_CHECKING, Unpack, overload
 from urllib.parse import unquote_plus
 
 from ._fast_multipart import (
@@ -26,7 +39,12 @@ from ._fast_multipart import (
 )
 from ._fast_multipart import PushMultipartParser as _PushMultipartParser
 
-ParserEvent = Union[MultipartSegment, bytes, None]
+if TYPE_CHECKING:
+    from wsgiref.types import WSGIEnvironment
+
+    from ._fast_multipart import _Limit, _ParserOptions, _Readable, _Writable
+
+ParserEvent = MultipartSegment | bytes | None
 BlockingReader = Callable[[int], bytes]
 AsyncReader = Callable[[int], Awaitable[bytes]]
 
@@ -36,7 +54,7 @@ _KNOWN_CHARSETS = frozenset(
 )
 
 
-def _is_valid_charset(charset) -> bool:
+def _is_valid_charset(charset: str) -> bool:
     if charset in _KNOWN_CHARSETS:
         return True
     try:
@@ -69,7 +87,11 @@ def content_disposition_quote(val: str) -> str:
     return '"' + val + '"'
 
 
-def parse_options_header(header: str, options=None, unquote=header_unquote):
+def parse_options_header(
+    header: str,
+    options: dict[str, str] | None = None,
+    unquote: Callable[[str, bool], str] = header_unquote,
+) -> tuple[str, dict[str, str]]:
     """Parse Content-Type (or similar) headers into a primary value and an
     options-dict.
 
@@ -96,66 +118,74 @@ def parse_options_header(header: str, options=None, unquote=header_unquote):
     return value, options
 
 
-class MultiDict(MutableMapping):
+class MultiDict[K, V](MutableMapping[K, V]):
     """A dict that stores multiple values per key. Most dict methods return the
     last value by default. There are special methods to get all values.
     """
 
-    def __init__(self, *args, **kwargs):
-        self.dict = {}
+    def __init__(self, *args: Mapping[K, V] | Iterable[tuple[K, V]], **kwargs: V) -> None:
+        self.dict: dict[K, list[V]] = {}
+        # Like dict(): keyword arguments only make sense for str keys, and a
+        # mapping argument is not mistaken for an iterable of pairs. Neither
+        # can be expressed to the type checker.
         for arg in args:
-            items = arg.items() if hasattr(arg, "items") else arg
+            items = arg.items() if isinstance(arg, Mapping) else arg
             for key, value in items:
-                self[key] = value
+                self[key] = value  # ty: ignore[invalid-assignment]
         for key, value in kwargs.items():
-            self[key] = value
+            self[key] = value  # ty: ignore[invalid-assignment]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.dict)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[K]:
         return iter(self.dict)
 
-    def __contains__(self, key):
+    def __contains__(self, key: object) -> bool:
         return key in self.dict
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: K) -> None:
         del self.dict[key]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.dict)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.dict)
 
-    def keys(self):
+    def keys(self) -> KeysView[K]:
         return self.dict.keys()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: K) -> V:
         return self.dict[key][-1]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: K, value: V) -> None:
         self.append(key, value)
 
-    def append(self, key, value):
+    def append(self, key: K, value: V) -> None:
         """Add an additional value to a key."""
         self.dict.setdefault(key, []).append(value)
 
-    def replace(self, key, value):
+    def replace(self, key: K, value: V) -> None:
         """Replace all values for a key with a single value."""
         self.dict[key] = [value]
 
-    def getall(self, key):
+    def getall(self, key: K) -> list[V]:
         """Return a list with all values for a key. The list may be empty."""
         return self.dict.get(key) or []
 
-    def get(self, key, default=None, index=-1):
+    @overload
+    def get(self, key: object, default: None = None, index: int = -1) -> V | None: ...
+    @overload
+    def get[T](self, key: object, default: T, index: int = -1) -> V | T: ...
+    def get[T](self, key: object, default: T | None = None, index: int = -1) -> V | T | None:
+        values = self.dict.get(key)
         try:
-            return self.dict[key][index]
-        except (KeyError, IndexError):
+            return values[index] if values else default
+        except IndexError:
             return default
 
-    def iterallitems(self):
+    def iterallitems(self) -> Iterator[tuple[K, V]]:
         """Yield (key, value) pairs with repeating keys for each value."""
         for key, values in self.dict.items():
             for value in values:
@@ -227,7 +257,9 @@ class PushMultipartParser(_PushMultipartParser):
 ##
 
 
-def copy_file(stream, target, maxread=-1, buffer_size=2**16):
+def copy_file(
+    stream: _Readable, target: _Writable, maxread: int = -1, buffer_size: int = 2**16
+) -> int:
     """Read from ``stream`` and write to ``target`` until ``maxread`` or EOF."""
     size, read = 0, stream.read
     while True:
@@ -248,7 +280,12 @@ _temporary_file = tempfile.TemporaryFile
 ##
 
 
-def is_form_request(environ) -> bool:
+def _int_limit(limit: _Limit) -> int | None:
+    """A limit as an integer, or None if unlimited (None or infinity)."""
+    return None if limit is None or limit == math.inf else int(limit)
+
+
+def is_form_request(environ: WSGIEnvironment) -> bool:
     """Return True if the environ represents a form request that can be
     parsed with :func:`parse_form_data`."""
     content_type = environ.get("CONTENT_TYPE", "")
@@ -259,7 +296,13 @@ def is_form_request(environ) -> bool:
     )
 
 
-def parse_form_data(environ, charset="utf8", strict=False, ignore_errors=None, **kwargs):
+def parse_form_data(
+    environ: WSGIEnvironment,
+    charset: str = "utf8",
+    strict: bool = False,
+    ignore_errors: bool | None = None,
+    **kwargs: Unpack[_ParserOptions],
+) -> tuple[MultiDict[str, str], MultiDict[str, MultipartPart]]:
     """Parse both types of form data (multipart and url-encoded) from a WSGI
     environment and return two :class:`MultiDict` instances, one for text
     form fields (strings) and one for file uploads (:class:`MultipartPart`
@@ -275,7 +318,8 @@ def parse_form_data(environ, charset="utf8", strict=False, ignore_errors=None, *
     :param kwargs: Additional keyword arguments (e.g. limits) passed to
         :class:`MultipartParser`.
     """
-    forms, files = MultiDict(), MultiDict()
+    forms: MultiDict[str, str] = MultiDict()
+    files: MultiDict[str, MultipartPart] = MultiDict()
 
     try:
         stream = environ.get("wsgi.input")
@@ -293,10 +337,10 @@ def parse_form_data(environ, charset="utf8", strict=False, ignore_errors=None, *
         try:
             content_length = int(environ.get("CONTENT_LENGTH", -1))
         except ValueError:
-            raise ParserError("Invalid Content-Length header")
+            raise ParserError("Invalid Content-Length header") from None
 
         content_type, options = parse_options_header(content_type)
-        kwargs["charset"] = charset = options.get("charset", charset)
+        charset = options.get("charset", charset)
 
         if not _is_valid_charset(charset):
             raise ParserError(f"Invalid charset: {charset!r}")
@@ -306,9 +350,10 @@ def parse_form_data(environ, charset="utf8", strict=False, ignore_errors=None, *
             if not boundary:
                 raise ParserError("Missing boundary for multipart/form-data")
 
-            for part in MultipartParser(
-                stream, boundary, content_length, strict=strict, **kwargs
-            ):
+            parser = MultipartParser(
+                stream, boundary, content_length, charset=charset, strict=strict, **kwargs
+            )
+            for part in parser:
                 if part.filename or not part.is_buffered():
                     files.append(part.name, part)
                 else:
@@ -319,22 +364,24 @@ def parse_form_data(environ, charset="utf8", strict=False, ignore_errors=None, *
             "application/x-www-form-urlencoded",
             "application/x-url-encoded",
         ):
-            mem_limit = kwargs.get("memory_limit", kwargs.get("mem_limit", 1024 * 64 * 128))
-            part_limit = kwargs.get("part_limit", 128)
+            mem_limit = _int_limit(
+                kwargs.get("memory_limit", kwargs.get("mem_limit", 1024 * 64 * 128))
+            )
+            part_limit = _int_limit(kwargs.get("part_limit", 128))
 
             if content_length > -1:
-                if content_length > mem_limit:
+                if mem_limit is not None and content_length > mem_limit:
                     raise ParserLimitReached("Memory limit exceeded")
-                data = stream.read(min(mem_limit, content_length))
+                data = stream.read(content_length)
                 if len(data) < content_length:
                     raise ParserError("Unexpected end of data stream")
             else:
-                data = stream.read(mem_limit + 1)
-                if len(data) > mem_limit:
+                data = stream.read(-1 if mem_limit is None else mem_limit + 1)
+                if mem_limit is not None and len(data) > mem_limit:
                     raise ParserLimitReached("Memory limit exceeded")
 
-            fields = data.decode(charset).split("&", part_limit)
-            if len(fields) > part_limit:
+            fields = data.decode(charset).split("&", -1 if part_limit is None else part_limit)
+            if part_limit is not None and len(fields) > part_limit:
                 raise ParserLimitReached("Part limit exceeded")
             for field in fields:
                 name, _, value = field.partition("=")

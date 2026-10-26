@@ -17,6 +17,9 @@ from ._fast_multipart import (
     header_unquote,
     parse_content_disposition,
 )
+from ._fast_multipart import (
+    __version__ as __version__,
+)
 from ._multipart import (
     MultiDict,
     MultipartParser,
@@ -29,7 +32,6 @@ from ._multipart import (
     parse_options_header,
 )
 
-__version__ = "0.1.0"
 __all__ = [
     "MultipartError",
     "ParserLimitReached",
