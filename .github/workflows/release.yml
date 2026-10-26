@@ -1,7 +1,9 @@
 # Builds wheels and the sdist. On a `v*` tag, also publishes the wheels to
 # PyPI with trusted publishing (configure the `pypi` environment and the
-# publisher on PyPI first). The sdist is built to check the source package,
-# but not published, so pip never compiles kirimi from source.
+# publisher on PyPI first), then creates a GitHub release with the changelog
+# section of the version and all files attached. The sdist is built to check
+# the source package and attached to the GitHub release, but not published to
+# PyPI, so pip never compiles kirimi from source.
 name: Release
 
 on:
@@ -74,13 +76,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Check that the tag matches the package version
+      - name: Check the tag against the version and the changelog
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           version=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "kirimi-python") | .version')
           test "v$version" = "$GITHUB_REF_NAME" || {
             echo "::error::Tag $GITHUB_REF_NAME does not match version $version"
+            exit 1
+          }
+          grep -qF "## [$version]" CHANGELOG.md || {
+            echo "::error::CHANGELOG.md has no section for $version (run towncrier build)"
+            exit 1
+          }
+          pending=$(find changelog.d -type f ! -name README.md)
+          test -z "$pending" || {
+            echo "::error::Unreleased changelog fragments: $pending"
             exit 1
           }
       - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
@@ -114,3 +125,34 @@ jobs:
         with:
           enable-cache: false
       - run: uv publish --trusted-publishing always dist/*
+
+  github-release:
+    name: GitHub release
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          merge-multiple: true
+          path: dist
+      - name: Create the release
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          # The changelog section of this version, without its heading.
+          awk -v v="$version" '
+            /^## / { if (found) exit; if (index($0, "[" v "]")) { found = 1; next } }
+            found
+          ' CHANGELOG.md > notes.md
+          test -s notes.md
+          flags=()
+          case "$version" in *a* | *b* | *rc*) flags+=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag \
+            --title "kirimi $version" --notes-file notes.md "${flags[@]}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

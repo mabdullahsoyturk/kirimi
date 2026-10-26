@@ -115,6 +115,22 @@ The runner does not pin the benchmark to a CPU core. See
 [bench/RESULTS.md](bench/RESULTS.md) for how the published results were
 measured.
 
+## Changelog
+
+`CHANGELOG.md` is generated with [towncrier](https://towncrier.readthedocs.io/)
+from fragments in `changelog.d/`. Every pull request with a user-visible change
+adds one, named `<PR number>.<type>.md` with type `added`, `changed`,
+`deprecated`, `removed`, `fixed` or `security`:
+
+```sh
+uv run towncrier create 42.fixed.md --edit
+```
+
+Use `+<slug>.<type>.md` if there is no pull request. CI requires a fragment in
+every pull request, except Dependabot updates and pull requests labelled
+`skip changelog` (for changes users do not notice, such as CI or refactoring).
+`uv run towncrier build --draft --version X.Y.Z` previews the next section.
+
 ## CI and releases
 
 Workflows in `.github/workflows`:
@@ -124,23 +140,32 @@ Workflows in `.github/workflows`:
   Python 3.12, 3.15 and free-threaded 3.15.
 - `fuzz.yml` (weekly, or manually): 10 minutes per fuzz target; crash inputs
   are uploaded as artifacts.
+- `changelog.yml` (pull requests): requires a changelog fragment.
 - `release.yml` (`v*` tags, or manually to build only): wheels for Linux
   (manylinux, musllinux), macOS and Windows on x86-64 and ARM64, and the
-  sdist. On a tag matching the version, publishes the wheels to PyPI with
-  trusted publishing. The sdist is not published, so pip never builds kirimi
-  from source.
+  sdist. On a tag, checks the tag against the version and `CHANGELOG.md`,
+  publishes the wheels to PyPI with trusted publishing, and then creates a
+  GitHub release with the version's changelog section as notes and the wheels
+  and sdist attached. The sdist is not published to PyPI, so pip never builds
+  kirimi from source.
 
 Actions are pinned to commit hashes. Dependabot keeps them, the Cargo crates
 and `uv.lock` up to date.
 
 ### Releasing
 
-1. Bump `version` in `Cargo.toml` (the only place it is set) and commit.
-2. Optionally run the `Release` workflow manually to check that all wheels
+1. Bump `version` in `Cargo.toml` (the only place it is set).
+2. Collect the changelog fragments: `uv run towncrier build --version 0.2.0`.
+   This writes the new section to `CHANGELOG.md` and deletes the fragments.
+3. Commit both changes, for example as "Release 0.2.0", and push.
+4. Optionally run the `Release` workflow manually to check that all wheels
    build; it does not publish.
-3. Push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`.
-   The workflow checks the tag against the version, builds the wheels and
-   publishes them after the `pypi` environment's protection rules pass.
+5. Push a matching tag: `git tag v0.2.0 && git push origin v0.2.0`. The
+   workflow fails before publishing if the tag does not match the version, if
+   `CHANGELOG.md` has no section for it, or if fragments are left over. After
+   the `pypi` environment's protection rules pass, it publishes to PyPI and
+   creates the GitHub release. Versions with `a`, `b` or `rc` become
+   pre-releases.
 
 Publishing uses PyPI trusted publishing, so no API token is needed. The
 publisher is configured on PyPI for project `kirimi-multipart`, owner
