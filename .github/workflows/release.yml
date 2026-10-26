@@ -1,6 +1,7 @@
-# Builds wheels and the sdist. On a `v*` tag, also publishes them to PyPI
-# with trusted publishing (configure the `pypi` environment and the
-# publisher on PyPI first).
+# Builds wheels and the sdist. On a `v*` tag, also publishes the wheels to
+# PyPI with trusted publishing (configure the `pypi` environment and the
+# publisher on PyPI first). The sdist is built to check the source package,
+# but not published, so pip never compiles kirimi from source.
 name: Release
 
 on:
@@ -88,7 +89,7 @@ jobs:
           args: --out dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: wheels-sdist
+          name: sdist
           path: dist
 
   publish:

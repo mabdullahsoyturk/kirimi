@@ -125,13 +125,23 @@ Workflows in `.github/workflows`:
 - `fuzz.yml` (weekly, or manually): 10 minutes per fuzz target; crash inputs
   are uploaded as artifacts.
 - `release.yml` (`v*` tags, or manually to build only): wheels for Linux
-  (manylinux, musllinux), macOS and Windows on x86-64 and ARM64, plus the
-  sdist. On a tag matching the version, publishes to PyPI with trusted
-  publishing (requires a `pypi` environment in GitHub and the publisher
-  configured on PyPI).
+  (manylinux, musllinux), macOS and Windows on x86-64 and ARM64, and the
+  sdist. On a tag matching the version, publishes the wheels to PyPI with
+  trusted publishing. The sdist is not published, so pip never builds kirimi
+  from source.
 
 Actions are pinned to commit hashes. Dependabot keeps them, the Cargo crates
 and `uv.lock` up to date.
 
-To release, bump `version` in `Cargo.toml`, commit, and push a matching tag
-(for example `v0.2.0`).
+### Releasing
+
+1. Bump `version` in `Cargo.toml` (the only place it is set) and commit.
+2. Optionally run the `Release` workflow manually to check that all wheels
+   build; it does not publish.
+3. Push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`.
+   The workflow checks the tag against the version, builds the wheels and
+   publishes them after the `pypi` environment's protection rules pass.
+
+Publishing uses PyPI trusted publishing, so no API token is needed. The
+publisher is configured on PyPI for owner `mabdullahsoyturk`, repository
+`kirimi`, workflow `release.yml` and environment `pypi`.

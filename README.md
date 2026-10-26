@@ -18,12 +18,12 @@ including adversarial ones.
 
 ## Installation
 
-kirimi is not yet published on PyPI. Install it from source (requires a
-Rust toolchain):
-
 ```sh
-pip install git+https://github.com/mabdullahsoyturk/fast-multipart
+pip install kirimi
 ```
+
+Wheels are available for CPython 3.12–3.15 (including free-threaded 3.14t and
+3.15t) on Linux (glibc and musl), macOS and Windows, on x86-64 and ARM64.
 
 ## Usage
 
@@ -88,7 +88,7 @@ better):
 
 The blocking results for large files are bounded by writes to temporary files.
 Absolute numbers, the other parsers and the test setup are in
-[bench/RESULTS.md](bench/RESULTS.md).
+[bench/RESULTS.md](https://github.com/mabdullahsoyturk/kirimi/blob/master/bench/RESULTS.md).
 
 ## Differences from `multipart`
 
@@ -116,7 +116,7 @@ Other differences:
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, project
+See [CONTRIBUTING.md](https://github.com/mabdullahsoyturk/kirimi/blob/master/CONTRIBUTING.md) for the development setup, project
 layout and design notes.
 
 ## License
