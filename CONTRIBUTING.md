@@ -143,5 +143,7 @@ and `uv.lock` up to date.
    publishes them after the `pypi` environment's protection rules pass.
 
 Publishing uses PyPI trusted publishing, so no API token is needed. The
-publisher is configured on PyPI for owner `mabdullahsoyturk`, repository
-`kirimi`, workflow `release.yml` and environment `pypi`.
+publisher is configured on PyPI for project `kirimi-multipart`, owner
+`mabdullahsoyturk`, repository `kirimi`, workflow `release.yml` and
+environment `pypi`. The PyPI name differs from the import name because
+`kirimi` is too similar to an existing project.

@@ -102,7 +102,7 @@ wheels = [
 ]
 
 [[package]]
-name = "kirimi"
+name = "kirimi-multipart"
 source = { editable = "." }
 default-groups = ["dev", "lint"]
 

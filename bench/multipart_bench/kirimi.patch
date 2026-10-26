@@ -6,7 +6,7 @@ index 9c6dae4..9329bec 100644
    * Used in [Bottle](https://pypi.org/project/bottle/), [LiteStar](https://litestar.dev/), [Zope](https://zope.readthedocs.io/) and others.
    * [CPython docs](https://docs.python.org/3.12/library/cgi.html) recommend it as a `cgi.FieldStorage` replacement.
    * Disclaimer: I am the author and maintainer of this library.
-+* kirimi v{{ package_version("kirimi") }}
++* kirimi v{{ package_version("kirimi-multipart") }}
 +  * Written in Rust (PyO3), with an API compatible with `multipart`.
  * [werkzeug](https://pypi.org/project/Werkzeug/) v{{ package_version("Werkzeug") }}
    * Used in [Flask](https://pypi.org/project/Flask/) and others.

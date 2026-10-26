@@ -85,7 +85,7 @@ def install(workdir: Path, python_version: str, plots: bool) -> Path:
             "--python",
             python,
             "--reinstall-package",
-            "kirimi",
+            "kirimi-multipart",
             PROJECT,
         )
     else:

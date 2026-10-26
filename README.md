@@ -19,8 +19,10 @@ including adversarial ones.
 ## Installation
 
 ```sh
-pip install kirimi
+pip install kirimi-multipart
 ```
+
+The package is imported as `kirimi`.
 
 Wheels are available for CPython 3.12–3.15 (including free-threaded 3.14t and
 3.15t) on Linux (glibc and musl), macOS and Windows, on x86-64 and ARM64.

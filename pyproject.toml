@@ -3,7 +3,7 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
-name = "kirimi"
+name = "kirimi-multipart"
 dynamic = ["version"]
 description = "Fast streaming multipart/form-data parser, written in Rust"
 readme = "README.md"
