@@ -43,8 +43,35 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - run: uv lock --check
-      # ruff check, ruff format, ty and detect-secrets (.pre-commit-config.yaml)
       - run: uv run --locked --only-group lint prek run --all-files --show-diff-on-failure
+        env:
+          SKIP: betterleaks
+
+  secrets:
+    name: Secrets (betterleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: stable
+          cache: false
+      - run: go install github.com/betterleaks/betterleaks/v2@v2.0.0-rc.15
+      - name: Scan new commits
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ -n "$BASE" && "$BASE" != 0000000000000000000000000000000000000000 ]] \
+            && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            git rev-list "$BASE..$HEAD"
+          else
+            echo "$HEAD"
+          fi | betterleaks git . --commit-list-file - --redact
 
   test:
     name: Python ${{ matrix.python }} (${{ matrix.os }})

@@ -17,7 +17,7 @@ package version is set in `Cargo.toml` only.
 
 ```sh
 uv run pytest
-uv run prek run --all-files        # ruff check, ruff format, ty, detect-secrets
+uv run prek run --all-files        # ruff check, ruff format, ty (betterleaks: staged changes only)
 cargo test -p kirimi-core --features fuzzing
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all --check
@@ -29,9 +29,13 @@ cargo fmt --all --check
   [ty](https://github.com/astral-sh/ty), including the stubs of the Rust
   extension in `python/kirimi/_kirimi.pyi`. Avoid `Any`.
 - **Hooks:** configured in `.pre-commit-config.yaml` and run with
-  [prek](https://github.com/j178/prek). detect-secrets compares against
-  `.secrets.baseline`; after reviewing a new finding, update the baseline with
-  `uvx detect-secrets scan --baseline .secrets.baseline`.
+  [prek](https://github.com/j178/prek). The
+  [betterleaks](https://github.com/betterleaks/betterleaks) v2 hook scans
+  staged changes on commit, and CI scans the commits a pull request or push
+  adds (prek installs Go to build the hook). The version is pinned in
+  `.pre-commit-config.yaml` and in the `secrets` job of
+  `.github/workflows/ci.yml`; update both together. To silence a reviewed false
+  positive, add a `betterleaks:allow` comment on its line.
 
 ## Layout
 

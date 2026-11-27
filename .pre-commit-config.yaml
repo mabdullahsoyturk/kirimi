@@ -29,8 +29,10 @@ repos:
         types_or: [python, pyi]
         pass_filenames: false
 
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: 01886c8a910c64595c47f186ca1ffc0b77fa5458 # frozen: v1.5.0
+  # Scans staged changes only, so it finds nothing with --all-files; CI scans
+  # the new commits (the `secrets` job in .github/workflows/ci.yml, which pins
+  # the same version).
+  - repo: https://github.com/betterleaks/betterleaks
+    rev: 74c729658d38c63c15770d215d97f2c7d9b24391 # frozen: v2.0.0-rc.15
     hooks:
-      - id: detect-secrets
-        args: [--baseline, .secrets.baseline]
+      - id: betterleaks
