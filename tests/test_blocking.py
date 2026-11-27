@@ -229,7 +229,7 @@ def test_part_attributes_and_headers() -> None:
     part.charset = "utf8"
     with pytest.raises(UnicodeDecodeError):
         part.value
-    part.custom = 1  # ty: ignore[unresolved-attribute]  # instances have a __dict__
+    part.custom = 1  # ty: ignore[missing-attribute]  # instances have a __dict__
     assert "name='f'" in repr(part)
 
 
