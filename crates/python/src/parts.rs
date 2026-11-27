@@ -463,7 +463,8 @@ impl Part {
 
     // Private methods kept for compatibility with `multipart`.
 
-    fn _write(&mut self, py: Python<'_>, chunk: &Bound<'_, PyAny>) -> PyResult<()> {
+    #[pyo3(name = "_write")]
+    fn py_write(&mut self, py: Python<'_>, chunk: &Bound<'_, PyAny>) -> PyResult<()> {
         let tempfile = &temporary_file_factory(py)?;
         if let Ok(bytes) = chunk.cast::<PyBytes>() {
             let data = bytes.as_bytes();
@@ -478,7 +479,8 @@ impl Part {
         self.write(py, &data, None, tempfile)
     }
 
-    fn _mark_complete(&self, py: Python<'_>) -> PyResult<()> {
+    #[pyo3(name = "_mark_complete")]
+    fn py_mark_complete(&self, py: Python<'_>) -> PyResult<()> {
         self.mark_complete(py)
     }
 

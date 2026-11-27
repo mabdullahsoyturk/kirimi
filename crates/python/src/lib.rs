@@ -580,7 +580,8 @@ fn parse_content_disposition(value: &str) -> (String, Option<String>, Option<Str
 /// Parse an options header. `mode` selects the unquote function:
 /// 0 = none (raw values), 1 = `header_unquote`, 2 = `content_disposition_unquote`.
 #[pyfunction]
-fn _parse_options_header(header: &str, mode: u8) -> (String, Option<Vec<(String, String)>>) {
+#[pyo3(name = "_parse_options_header")]
+fn py_parse_options_header(header: &str, mode: u8) -> (String, Option<Vec<(String, String)>>) {
     fn raw(val: &str, _filename: bool) -> String {
         val.to_owned()
     }
@@ -592,8 +593,8 @@ fn _parse_options_header(header: &str, mode: u8) -> (String, Option<Vec<(String,
     mp::parse_options_header(header, unquote)
 }
 
-#[pymodule]
-fn _kirimi(m: &Bound<'_, PyModule>) -> PyResult<()> {
+#[pymodule(name = "_kirimi")]
+fn kirimi_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<PushParser>()?;
@@ -609,6 +610,6 @@ fn _kirimi(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(header_unquote, m)?)?;
     m.add_function(wrap_pyfunction!(content_disposition_unquote, m)?)?;
     m.add_function(wrap_pyfunction!(parse_content_disposition, m)?)?;
-    m.add_function(wrap_pyfunction!(_parse_options_header, m)?)?;
+    m.add_function(wrap_pyfunction!(py_parse_options_header, m)?)?;
     Ok(())
 }
