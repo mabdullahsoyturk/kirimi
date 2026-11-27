@@ -1,0 +1,1 @@
+`MultipartParser` raises "Memory limit reached" regardless of how the input is split: a part that is spooled to disk now counts towards `memory_limit` with the `spool_limit` bytes it held in memory first, even if a single chunk takes it past the spool limit.

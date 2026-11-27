@@ -7,6 +7,11 @@
 //! file without further copies. In-memory parts only become a `BytesIO` when
 //! their `file` attribute is accessed, so `raw` and `value` are served from
 //! memory directly.
+//!
+//! If the temporary file is the kind `tempfile.TemporaryFile` creates on
+//! POSIX, spooled data is written to its file descriptor from Rust, without
+//! holding the GIL, instead of through the Python file object (see
+//! [`direct`]).
 
 use std::collections::VecDeque;
 
@@ -127,6 +132,13 @@ impl Memory {
         Ok(joined)
     }
 
+    /// Write all pieces to the file descriptor `fd`, without holding the GIL.
+    fn write_to_fd(&self, py: Python<'_>, fd: direct::Fd) -> PyResult<()> {
+        let bufs: Vec<&[u8]> = self.pieces.iter().map(|piece| piece.as_bytes(py)).collect();
+        py.detach(|| direct::write_all(fd, &bufs))
+            .map_err(|err| os_error(py, err))
+    }
+
     /// Write all pieces to a file object.
     fn write_to(&self, py: Python<'_>, file: &Bound<'_, PyAny>) -> PyResult<()> {
         for piece in &self.pieces {
@@ -174,6 +186,9 @@ pub struct Part {
     headerlist: Option<Py<PyAny>>,
     headers_obj: Option<Py<PyAny>>,
     body: Body,
+    /// The file descriptor of the temporary file in `body` while it is
+    /// written to directly. Cleared when the part is complete.
+    fd: Option<direct::Fd>,
 }
 
 impl Part {
@@ -202,17 +217,21 @@ impl Part {
             headerlist: None,
             headers_obj: None,
             body: Body::Memory(Memory::default()),
+            fd: None,
         }
     }
 
     /// Append body data. `source`, if given, is where `data` lives in an
-    /// immutable input chunk.
+    /// immutable input chunk. With `direct`, a temporary file created here
+    /// may be written to through its file descriptor; the caller must then
+    /// not expose the part before `mark_complete`.
     fn write(
         &mut self,
         py: Python<'_>,
         data: &[u8],
         source: Option<Source<'_, '_>>,
         tempfile: &Bound<'_, PyAny>,
+        direct: bool,
     ) -> PyResult<()> {
         self.size += data.len() as u64;
         match &mut self.body {
@@ -220,11 +239,21 @@ impl Part {
                 memory.push(data, source);
                 if self.size > self.memfile_limit {
                     let file = tempfile.call0()?;
-                    memory.write_to(py, &file)?;
+                    let fd = if direct { direct::fd(&file)? } else { None };
+                    match fd {
+                        Some(fd) => memory.write_to_fd(py, fd)?,
+                        None => memory.write_to(py, &file)?,
+                    }
+                    self.fd = fd;
                     self.body = Body::File(file.unbind());
                 }
             }
             Body::File(file) => {
+                if let Some(fd) = self.fd {
+                    return py
+                        .detach(|| direct::write_all(fd, &[data]))
+                        .map_err(|err| os_error(py, err));
+                }
                 let obj = match source {
                     Some(src) => src.object()?,
                     None => PyBytes::new(py, data).into_any(),
@@ -240,7 +269,11 @@ impl Part {
         Ok(())
     }
 
-    fn mark_complete(&self, py: Python<'_>) -> PyResult<()> {
+    fn mark_complete(&mut self, py: Python<'_>) -> PyResult<()> {
+        // From here on, the file object may be used from Python, so all
+        // further access goes through it. Its buffer is empty, so `seek`
+        // moves the OS file offset and resyncs its position.
+        self.fd = None;
         if let Body::File(file) = &self.body {
             file.bind(py).call_method1(intern!(py, "seek"), (0,))?;
         }
@@ -473,14 +506,14 @@ impl Part {
                 start: 0,
                 end: data.len(),
             };
-            return self.write(py, data, Some(source), tempfile);
+            return self.write(py, data, Some(source), tempfile, false);
         }
         let data: Vec<u8> = chunk.extract()?;
-        self.write(py, &data, None, tempfile)
+        self.write(py, &data, None, tempfile, false)
     }
 
     #[pyo3(name = "_mark_complete")]
-    fn py_mark_complete(&self, py: Python<'_>) -> PyResult<()> {
+    fn py_mark_complete(&mut self, py: Python<'_>) -> PyResult<()> {
         self.mark_complete(py)
     }
 
@@ -540,17 +573,24 @@ impl SpoolSink<'_, '_> {
         });
         let spool = &mut *self.spool;
         let part = spool.current.as_mut().expect("data outside of a part");
-        part.write(py, data, source, spool.tempfile.bind(py))?;
-        if part.in_memory() {
-            if spool
-                .memory_limit
-                .is_some_and(|limit| part.size + spool.memory_used > limit)
-            {
-                return Err(ParserLimitReached::new_err("Memory limit reached"));
-            }
-        } else if spool
-            .disk_limit
-            .is_some_and(|limit| part.size + spool.disk_used > limit)
+        // Parts are only exposed once complete, so direct writes are safe.
+        part.write(py, data, source, spool.tempfile.bind(py), true)?;
+        // A part stays in memory until it exceeds the spool limit, so it
+        // peaks there at `min(size, spool limit)` bytes, even if this chunk
+        // took it from below the memory limit straight to disk. Checking
+        // that peak gives the same result as checking after every byte, so
+        // it does not depend on how the input is split.
+        let memory_peak = part.size.min(part.memfile_limit);
+        if spool
+            .memory_limit
+            .is_some_and(|limit| memory_peak + spool.memory_used > limit)
+        {
+            return Err(ParserLimitReached::new_err("Memory limit reached"));
+        }
+        if !part.in_memory()
+            && spool
+                .disk_limit
+                .is_some_and(|limit| part.size + spool.disk_used > limit)
         {
             return Err(ParserLimitReached::new_err("Disk limit reached"));
         }
@@ -560,7 +600,7 @@ impl SpoolSink<'_, '_> {
     fn end_inner(&mut self) -> PyResult<()> {
         let py = self.py;
         let spool = &mut *self.spool;
-        let part = spool.current.take().expect("end outside of a part");
+        let mut part = spool.current.take().expect("end outside of a part");
         if part.in_memory() {
             spool.memory_used += part.size;
         } else {
@@ -600,6 +640,107 @@ impl mp::Sink for SpoolSink<'_, '_> {
         {
             self.error = Some(err);
         }
+    }
+}
+
+/// Convert an I/O error to an `OSError` as Python's own I/O raises it: with
+/// `errno` and `strerror` set, and as the matching subclass.
+fn os_error(py: Python<'_>, err: std::io::Error) -> PyErr {
+    static STRERROR: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+    if let Some(code) = err.raw_os_error()
+        && let Ok(strerror) = STRERROR.import(py, "os", "strerror")
+        && let Ok(message) = strerror.call1((code,))
+    {
+        return pyo3::exceptions::PyOSError::new_err((code, message.unbind()));
+    }
+    err.into()
+}
+
+/// Writing spooled data straight to the file descriptor of a temporary file.
+///
+/// Writing through the Python file object costs a method call, the
+/// `BufferedRandom` and `FileIO` layers and a `memoryview` per write, about as
+/// much as parsing. This is only done for the file objects that
+/// `tempfile.TemporaryFile` creates on POSIX (a `BufferedRandom` over a
+/// `FileIO`), and only before the part is exposed to Python code, so nothing
+/// else uses the file object meanwhile. Its buffer stays empty and its cached
+/// position is reset by the `seek(0)` in `Part::mark_complete`.
+#[cfg(unix)]
+mod direct {
+    use std::fs::File;
+    use std::io::{self, IoSlice, Write};
+    use std::mem::ManuallyDrop;
+    use std::os::fd::{FromRawFd, RawFd};
+
+    use pyo3::intern;
+    use pyo3::prelude::*;
+    use pyo3::sync::PyOnceLock;
+    use pyo3::types::PyType;
+
+    pub(super) type Fd = RawFd;
+
+    /// The file descriptor of `file` if it can be written to directly.
+    pub(super) fn fd(file: &Bound<'_, PyAny>) -> PyResult<Option<Fd>> {
+        static BUFFERED_RANDOM: PyOnceLock<Py<PyType>> = PyOnceLock::new();
+        static FILE_IO: PyOnceLock<Py<PyType>> = PyOnceLock::new();
+        let py = file.py();
+        if !file
+            .get_type()
+            .is(BUFFERED_RANDOM.import(py, "io", "BufferedRandom")?)
+        {
+            return Ok(None);
+        }
+        let raw = file.getattr(intern!(py, "raw"))?;
+        if !raw.get_type().is(FILE_IO.import(py, "io", "FileIO")?) {
+            return Ok(None);
+        }
+        // Direct writes must come after anything the factory buffered.
+        file.call_method0(intern!(py, "flush"))?;
+        Ok(Some(raw.call_method0(intern!(py, "fileno"))?.extract()?))
+    }
+
+    /// Write all of `bufs` to `fd`.
+    pub(super) fn write_all(fd: Fd, bufs: &[&[u8]]) -> io::Result<()> {
+        // SAFETY: `fd` belongs to a file object that the part keeps alive and
+        // that is not exposed to Python code yet, so it stays open. (A custom
+        // factory could keep a reference and close the file from another
+        // thread while the GIL is released; Python's own `FileIO.write` has
+        // the same race.) The `File` is never dropped, so it does not close
+        // `fd`.
+        let mut file = ManuallyDrop::new(unsafe { File::from_raw_fd(fd) });
+        let mut slices: Vec<IoSlice<'_>> = bufs
+            .iter()
+            .filter(|buf| !buf.is_empty())
+            .map(|buf| IoSlice::new(buf))
+            .collect();
+        let mut slices = &mut slices[..];
+        while !slices.is_empty() {
+            match file.write_vectored(slices) {
+                Ok(0) => return Err(io::ErrorKind::WriteZero.into()),
+                Ok(n) => IoSlice::advance_slices(&mut slices, n),
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Direct writes are not implemented on this platform.
+#[cfg(not(unix))]
+mod direct {
+    use pyo3::prelude::*;
+
+    #[derive(Clone, Copy)]
+    pub(super) enum Fd {}
+
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn fd(_file: &Bound<'_, PyAny>) -> PyResult<Option<Fd>> {
+        Ok(None)
+    }
+
+    pub(super) fn write_all(fd: Fd, _bufs: &[&[u8]]) -> std::io::Result<()> {
+        match fd {}
     }
 }
 

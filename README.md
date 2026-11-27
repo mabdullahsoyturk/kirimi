@@ -102,6 +102,10 @@ These make the result independent of how the input is split into chunks:
   misses the byte in front of it if the boundary straddles two chunks.
 - A header line of exactly `max_header_size` bytes is accepted. `multipart`
   rejects it if a chunk ends between its CR and LF.
+- `MultipartParser` counts a part that is spooled to disk towards
+  `memory_limit` with the `spool_limit` bytes it held in memory first.
+  `multipart` does not count them if a single chunk takes the part past the
+  spool limit.
 
 Other differences:
 

@@ -2,11 +2,12 @@
 
 Both parsers get the same input, split into the same chunks, and must agree on
 segments, headers, body data and errors. Documented deviations are listed in
-``KNOWN_DEVIATIONS``.
+``KNOWN_DEVIATIONS``, and ``ByteCheckedParser`` describes how the blocking
+parsers' memory limit differs.
 """
 
 import io
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from types import ModuleType
 
 import multipart
@@ -232,8 +233,65 @@ def test_parse_content_disposition(value: str) -> None:
 # Blocking parser
 
 
+class ByteCheckedParser(multipart.MultipartParser):
+    """multipart's ``MultipartParser``, with the limits checked after every byte.
+
+    multipart checks ``memory_limit`` after each chunk of body data. A part
+    that goes from below the limit to over the spool limit within one chunk
+    moves to disk without being counted, so whether "Memory limit reached" is
+    raised depends on how the input is split, and on how much body data
+    multipart holds back because it could be the start of a boundary. kirimi
+    gives the result of checking after every byte instead.
+    """
+
+    def _iterparse(self) -> Iterator[multipart.MultipartPart]:
+        # multipart 2.0.1's _iterparse, with body chunks written byte by byte.
+        mem_used = disk_used = 0
+        part = None
+        parser = multipart.PushMultipartParser(
+            boundary=self.boundary,
+            content_length=self.content_length,
+            max_header_count=self.header_limit,
+            max_header_size=self.headersize_limit,
+            max_segment_count=self.part_limit,
+            max_segment_size=self.partsize_limit,
+            header_charset=self.charset,
+            strict=self.strict,
+        )
+        with parser:
+            for event in parser.parse_blocking(self.stream.read, self.buffer_size):
+                if isinstance(event, multipart.MultipartSegment):
+                    part = multipart.MultipartPart(
+                        event,
+                        buffer_size=self.buffer_size,
+                        memfile_limit=self.spool_limit,
+                        charset=self.charset,
+                    )
+                elif event:
+                    assert part
+                    for i in range(len(event)):
+                        part._write(event[i : i + 1])
+                        if part.is_buffered():
+                            if part.size + mem_used > self.memory_limit:
+                                raise multipart.ParserLimitReached("Memory limit reached")
+                        elif part.size + disk_used > self.disk_limit:
+                            raise multipart.ParserLimitReached("Disk limit reached")
+                else:
+                    assert part
+                    if part.is_buffered():
+                        mem_used += part.size
+                    else:
+                        disk_used += part.size
+                    part._mark_complete()
+                    yield part
+                    part = None
+
+
 def run_blocking(
-    module: ModuleType, data: bytes, read_size: int, **kwargs: object
+    parser_type: Callable[..., km.MultipartParser | multipart.MultipartParser],
+    data: bytes,
+    read_size: int,
+    **kwargs: object,
 ) -> list[tuple[object, ...]] | tuple[str, str, str]:
     stream = io.BytesIO(data)
 
@@ -242,7 +300,7 @@ def run_blocking(
 
     reader = type("Reader", (), {"read": staticmethod(read)})()
     try:
-        parts = module.MultipartParser(reader, BOUNDARY, **kwargs).parts()
+        parts = parser_type(reader, BOUNDARY, **kwargs).parts()
         return [
             (
                 p.name,
@@ -274,11 +332,11 @@ def test_differential_blocking(
     kwargs = dict(spool_limit=spool_limit, buffer_size=buffer_size)
     if memory_limit is not None:
         kwargs["memory_limit"] = memory_limit
-    expected = run_blocking(multipart, data, read_size, **kwargs)
-    actual = run_blocking(km, data, read_size, **kwargs)
+    expected = run_blocking(ByteCheckedParser, data, read_size, **kwargs)
+    actual = run_blocking(km.MultipartParser, data, read_size, **kwargs)
     if is_error(actual) and actual[2] in KNOWN_DEVIATIONS:
         return
     if is_error(expected) and expected[2] in CHUNK_DEPENDENT_IN_MULTIPART and actual != expected:
         whole = dict(kwargs, buffer_size=len(data) + 1)
-        expected = run_blocking(multipart, data, len(data) + 1, **whole)
+        expected = run_blocking(ByteCheckedParser, data, len(data) + 1, **whole)
     assert actual == expected

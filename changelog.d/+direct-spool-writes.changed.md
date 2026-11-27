@@ -1,0 +1,1 @@
+`MultipartParser` writes parts that exceed the spool limit to the temporary file's descriptor directly on POSIX, without holding the GIL, instead of through the Python file object. This makes spooled uploads up to 10% faster.

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import errno
 import io
+import os
+import tempfile
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import IO, TYPE_CHECKING
 from wsgiref.types import WSGIEnvironment
 
 import multipart
@@ -267,6 +270,75 @@ def test_tempfile_only_for_spooled_parts(monkeypatch: pytest.MonkeyPatch) -> Non
     assert len(created) == 1
     assert b.file is created[0]
     assert b.raw == b"y" * 1000
+
+
+@pytest.mark.parametrize("buffer_size", [7, 1000, 65536])
+def test_spooled_file_object_is_consistent(buffer_size: int) -> None:
+    # On POSIX, spooled data bypasses the file object and goes to its file
+    # descriptor; the file object must still be in a consistent state.
+    body = bytes(range(256)) * 1000
+    data = form(("a", "a.bin", body), ("b", "b.bin", body[::-1]))
+    a, b = km.MultipartParser(
+        io.BytesIO(data), BOUNDARY, spool_limit=100, buffer_size=buffer_size
+    ).parts()
+    for part, expected in ((a, body), (b, body[::-1])):
+        assert not part.is_buffered()
+        file = part.file
+        assert file is not None and file.tell() == 0
+        assert file.read(10) == expected[:10]
+        assert file.tell() == 10
+        assert file.seek(0, io.SEEK_END) == len(expected)
+        file.write(b"tail")
+        assert part.raw == expected + b"tail"
+
+
+def test_spooled_data_follows_data_buffered_by_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kirimi import _multipart
+
+    def factory() -> IO[bytes]:
+        file = tempfile.TemporaryFile()
+        file.write(b"head")  # still in the file object's buffer
+        return file
+
+    monkeypatch.setattr(_multipart, "_temporary_file", factory)
+    data = form(("a", "a.bin", b"x" * 1000))
+    (part,) = km.MultipartParser(io.BytesIO(data), BOUNDARY, spool_limit=100).parts()
+    assert part.raw == b"head" + b"x" * 1000
+
+
+@pytest.mark.skipif(not os.path.exists("/dev/full"), reason="needs /dev/full")
+def test_spooled_write_errors_are_raised(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kirimi import _multipart
+
+    # A file object like the default one whose writes fail with ENOSPC.
+    monkeypatch.setattr(_multipart, "_temporary_file", lambda: open("/dev/full", "r+b"))  # noqa: SIM115
+    data = form(("a", "a.bin", b"x" * 1000))
+    for buffer_size in (300, 65536):  # fails when spooling, or on a later write
+        with pytest.raises(OSError) as info:
+            km.MultipartParser(
+                io.BytesIO(data), BOUNDARY, spool_limit=100, buffer_size=buffer_size
+            ).parts()
+        assert (info.value.errno, info.value.strerror) == (errno.ENOSPC, os.strerror(errno.ENOSPC))
+
+
+@pytest.mark.parametrize("memory_limit", [36, 37])
+def test_memory_limit_does_not_depend_on_chunking(memory_limit: int) -> None:
+    # "b" peaks at 20 bytes in memory before it is spooled, so it needs 17 + 20
+    # bytes of memory, even if a chunk takes it from below 13 bytes to disk.
+    data = form(("a", None, b"x" * 17), ("b", "b.bin", b"y" * 24))
+    for buffer_size in range(1, len(data) + 2):
+        parser = km.MultipartParser(
+            io.BytesIO(data),
+            BOUNDARY,
+            buffer_size=buffer_size,
+            spool_limit=20,
+            memory_limit=memory_limit,
+        )
+        if memory_limit < 37:
+            with pytest.raises(km.ParserLimitReached, match="Memory limit reached"):
+                parser.parts()
+        else:
+            assert [p.size for p in parser.parts()] == [17, 24]
 
 
 def test_limit_errors_stop_iteration() -> None:

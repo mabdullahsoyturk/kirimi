@@ -71,9 +71,18 @@ cargo fmt --all --check
   one loop. In-memory parts keep ranges of the input chunks instead of copies
   and only become a `BytesIO` when `.file` is accessed; `.raw` and `.value`
   are served from memory. Parts over the spool limit are written to a
-  temporary file without further copies (partial chunks go out as
-  `memoryview` slices). For spooled parts, temporary file writes dominate, so
-  the gain over `multipart` there is small.
+  temporary file without further copies. For spooled parts, temporary file
+  writes dominate, so the gain over `multipart` there is small.
+- **Direct spool writes.** Writing through the Python file object (method
+  call, `BufferedRandom` and `FileIO` layers, a `memoryview` per write) cost
+  about as much as parsing. If the temporary file is what
+  `tempfile.TemporaryFile` creates on POSIX (a `BufferedRandom` over a
+  `FileIO`), spooled data is written to its file descriptor from Rust instead,
+  with `writev` and without holding the GIL. This only happens before the part
+  is returned; afterwards the file object's buffer is empty and `seek(0)`
+  resyncs its position. Other file objects (a replaced `_temporary_file`,
+  Windows) go through `write()`. See `direct` in
+  `crates/python/src/parts.rs`.
 
 ## Fuzzing
 

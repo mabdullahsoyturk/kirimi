@@ -21,6 +21,7 @@
   --accent-soft: #fbe6de;
   --bar-a: #d2502b;
   --bar-b: #e9a48c;
+  --bar-other: #cdc7bf;
   --tok-kw: #a1381b;
   --tok-str: #2f6f4f;
   --tok-com: #8a847c;
@@ -40,6 +41,7 @@
     --accent-soft: #3a231b;
     --bar-a: #f07a55;
     --bar-b: #8c4a35;
+    --bar-other: #4d4741;
     --tok-kw: #f39b7c;
     --tok-str: #8fcfa9;
     --tok-com: #847c74;
@@ -172,6 +174,45 @@ pre {
   .axis > span { display: none; }
 }
 
+/* Comparison with other parsers */
+h3.perf { font-size: 1.15rem; margin: 40px 0 8px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+.seg {
+  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.seg button {
+  font: inherit; font-size: 0.85rem; cursor: pointer;
+  border: 0; background: transparent; color: var(--muted);
+  padding: 5px 10px; border-radius: 6px;
+}
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] {
+  background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border);
+}
+.seg.mono button { font-family: var(--mono); font-size: 0.8rem; }
+.scenario-desc { color: var(--muted); font-size: 0.9rem; margin: 12px 0 16px; }
+.cmp { display: grid; gap: 10px; }
+.cmp-row { display: grid; grid-template-columns: 190px 1fr; gap: 12px; align-items: center; }
+.cmp-row .name { font-family: var(--mono); font-size: 0.85rem; text-align: right; line-height: 1.25; }
+.cmp-row .name small { display: block; font-family: var(--sans); font-size: 0.75rem; color: var(--muted); }
+.cmp-row.me .name { color: var(--accent); font-weight: 600; }
+.cmp-bar { display: flex; align-items: center; height: 18px; min-width: 0; }
+.cmp-bar span { display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; background: var(--bar-other); }
+.cmp-row.me .cmp-bar span { background: var(--bar-a); }
+.cmp-row.base .cmp-bar span { background: var(--bar-b); }
+.cmp-bar b {
+  font-weight: 500; font-size: 0.8rem; color: var(--muted); padding-left: 8px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cmp-row.me .cmp-bar b { color: var(--text); }
+.cmp-bar .na { font-size: 0.8rem; color: var(--muted); font-style: italic; }
+@media (max-width: 560px) {
+  .cmp-row { grid-template-columns: 1fr; gap: 2px; }
+  .cmp-row .name { text-align: left; }
+  .cmp-row .name small { display: inline; margin-left: 6px; }
+}
+
 /* Differences */
 .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 @media (max-width: 720px) { .diff { grid-template-columns: 1fr; } }
@@ -294,8 +335,28 @@ upload = files.get(<span class="s">"upload"</span>)            <span class="c">#
       <div class="chart" id="chart" role="img" aria-label="Speedup over multipart per scenario; see the table in the README for exact values."></div>
       <div class="axis" aria-hidden="true"><span></span><div id="axis"></div></div>
 
-      <p class="note">Blocking results for large files are bounded by writes to temporary files.
-        Absolute numbers, other parsers and the test setup are in
+      <p class="note">Blocking results for large files are bounded by writes to temporary files:
+        writing 32 MB to a fresh temporary file alone takes about 80% of the blocking
+        <code>upload</code> time.</p>
+
+      <h3 class="perf">Compared with other parsers</h3>
+      <p class="sub">Throughput in MB/s on the same benchmark, with the percentage relative to
+        <code>multipart</code>. Includes the parsers behind FastAPI and Starlette
+        (<code>python-multipart</code>), Flask (<code>werkzeug</code>), Django and Emmett.</p>
+
+      <div class="controls">
+        <div class="seg mono" id="scenario-picker" role="group" aria-label="Scenario"></div>
+        <div class="seg" id="mode-picker" role="group" aria-label="API">
+          <button type="button" data-mode="0">Non-blocking</button>
+          <button type="button" data-mode="1">Blocking</button>
+        </div>
+      </div>
+      <p class="scenario-desc" id="scenario-desc" aria-live="polite"></p>
+      <div class="cmp" id="cmp"></div>
+
+      <p class="note">“No non-blocking API” means the parser only offers a blocking interface;
+        “failed” means the run did not complete on that input. Parser versions, hardware and
+        the full tables are in
         <a href="https://github.com/mabdullahsoyturk/kirimi/blob/master/bench/RESULTS.md">bench/RESULTS.md</a>.</p>
     </div>
   </section>
@@ -311,6 +372,7 @@ upload = files.get(<span class="s">"upload"</span>)            <span class="c">#
             <li>A bare LF in a part header line is always an error.</li>
             <li>A first boundary that does not follow a CRLF is always an error.</li>
             <li>A header line of exactly <code>max_header_size</code> bytes is accepted.</li>
+            <li>Parts spooled to disk count towards <code>memory_limit</code> with the bytes they held in memory first.</li>
           </ul>
         </div>
         <div>
@@ -374,6 +436,109 @@ for (const t of [1, 2, 4, 6, 8]) {
   em.textContent = `${t}×`;
   axis.appendChild(em);
 }
+
+// Throughput of every parser in MB/s, from bench/RESULTS.md. Each scenario holds
+// [non-blocking, blocking] lists in PARSERS order. null: no non-blocking API; 0: failed.
+const PARSERS = [
+  ["kirimi", ""],
+  ["multipart", ""],
+  ["python-multipart", "FastAPI, Starlette"],
+  ["werkzeug", "Flask"],
+  ["django", ""],
+  ["streaming-form-data", ""],
+  ["cgi", "stdlib, removed in 3.13"],
+  ["email", "stdlib"],
+  ["emmett-core", "Emmett"],
+];
+const SCENARIOS = {
+  simple: ["Two small text fields",
+    [163.99, 33.08, 9.33, 6.45, null, 0.65, null, 3.54, null],
+    [155.56, 19.59, 5.41, 4.85, 2.01, 0.62, 3.97, 3.02, 69.89]],
+  large: ["100 small text fields",
+    [252.73, 45.93, 16.30, 9.45, null, 0.94, null, 10.11, null],
+    [213.63, 30.29, 9.98, 7.86, 4.07, 0.91, 6.19, 8.71, 124.60]],
+  upload: ["One 32 MB file",
+    [18083.24, 5462.83, 4669.09, 1492.12, null, 3585.16, null, 55.37, null],
+    [2352.74, 2090.90, 1830.61, 955.56, 1003.83, 1508.79, 132.51, 48.86, 2358.91]],
+  mixed: ["Text fields and two files (1 MB, 2 MB)",
+    [16965.95, 5192.02, 4276.13, 1393.27, null, 1700.68, null, 60.56, null],
+    [2381.70, 1846.99, 1451.00, 863.74, 859.80, 957.13, 131.64, 57.74, 2432.05]],
+  worstcase_crlf: ["1 MB of \\r\\n",
+    [10538.54, 3608.83, 3832.52, 2309.88, null, 28.88, null, 3.77, null],
+    [2136.16, 1604.44, 1233.42, 1112.44, 1086.94, 27.95, 3.68, 3.75, 2404.19]],
+  worstcase_lf: ["1 MB of \\n",
+    [17376.41, 5174.39, 4080.25, 2329.04, null, 1579.51, null, 2.37, null],
+    [2295.61, 1684.13, 1371.43, 1101.05, 1101.48, 886.25, 1.69, 2.35, 2391.56]],
+  worstcase_bchar: ["1 MB of near-boundaries",
+    [10514.55, 4223.66, 2532.60, 1808.36, null, 29.75, null, 49.35, null],
+    [2147.65, 1461.62, 1042.79, 992.51, 958.56, 29.18, 69.01, 47.76, 1373.61]],
+  worstcase_junk: ["1 MB of junk around the form",
+    [18067.19, 4147.54, 0, 49.10, null, 0, null, 114.57, null],
+    [18802.76, 3899.30, 0, 48.94, 0, 0, 1120.13, 114.53, 19177.70]],
+};
+
+let scenario = "simple";
+let mode = 0;
+const fmtMBs = (v) =>
+  v.toLocaleString("en-US", { maximumFractionDigits: v >= 100 ? 0 : v >= 1 ? 1 : 2 });
+const fmtPct = (p) => (p < 0.5 ? "<1%" : `${Math.round(p)}%`);
+
+function renderComparison() {
+  const [desc, ...modes] = SCENARIOS[scenario];
+  const values = modes[mode];
+  const base = values[1];
+  const max = Math.max(...values.filter((v) => v));
+  // Rank by throughput; failed runs, then parsers without this API, go last.
+  const rank = (v) => (v === null ? -2 : v === 0 ? -1 : v);
+  const order = PARSERS.map((p, i) => i).sort((a, b) => rank(values[b]) - rank(values[a]));
+
+  document.getElementById("scenario-desc").textContent =
+    `${scenario}: ${desc}, ${mode ? "blocking" : "non-blocking"} API.`;
+  document.getElementById("cmp").innerHTML = order
+    .map((i) => {
+      const [name, note] = PARSERS[i];
+      const v = values[i];
+      const cls = i === 0 ? "me" : i === 1 ? "base" : "";
+      const bar =
+        v === null
+          ? `<em class="na">no non-blocking API</em>`
+          : v === 0
+            ? `<em class="na">failed</em>`
+            : `<span style="width:${(v / max) * 75}%"></span><b>${fmtMBs(v)} MB/s · ${fmtPct((v / base) * 100)}</b>`;
+      return (
+        `<div class="cmp-row ${cls}"><div class="name">${name}${note ? `<small>${note}</small>` : ""}</div>` +
+        `<div class="cmp-bar">${bar}</div></div>`
+      );
+    })
+    .join("");
+}
+
+function setPressed(group, active) {
+  for (const b of group.querySelectorAll("button")) b.setAttribute("aria-pressed", b === active);
+}
+const scenarioPicker = document.getElementById("scenario-picker");
+for (const name of Object.keys(SCENARIOS)) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = name;
+  b.setAttribute("aria-pressed", name === scenario);
+  b.addEventListener("click", () => {
+    scenario = name;
+    setPressed(scenarioPicker, b);
+    renderComparison();
+  });
+  scenarioPicker.appendChild(b);
+}
+const modePicker = document.getElementById("mode-picker");
+for (const b of modePicker.querySelectorAll("button")) {
+  b.setAttribute("aria-pressed", Number(b.dataset.mode) === mode);
+  b.addEventListener("click", () => {
+    mode = Number(b.dataset.mode);
+    setPressed(modePicker, b);
+    renderComparison();
+  });
+}
+renderComparison();
 
 // Copy install command.
 const copy = document.getElementById("copy");
