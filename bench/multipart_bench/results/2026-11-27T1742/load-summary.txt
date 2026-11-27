@@ -1,0 +1,30 @@
+Load recorded every 15 s. 'Other CPUs' excludes CPU 2
+(benchmark) and its sibling. Memory traffic is system-wide and includes
+the benchmark's own.
+
+                                baseline   benchmark
+duration (min)                       0.5         9.5
+samples                                2          37
+memory traffic, mean (GB/s)         1.07        1.70
+memory traffic, max (GB/s)          1.09        3.41
+other CPUs busy, mean (%)            0.6         0.4
+other CPUs busy, max (%)             0.6         1.8
+busiest other CPU, max (%)           1.1        11.9
+CPU 2 busy, mean (%)                 0.0        81.4
+load average (1 min), max           0.42        2.25
+package temperature, max (C)          49          52
+CPU 2 frequency (MHz)          2100-2100   2004-2100
+
+Processes with the most CPU time during the benchmark (mean % of one CPU):
+    81.2  python (pid 19418)
+     1.7  code (pid 9420)
+     0.8  claude (pid 10294)
+     0.4  code (pid 9622)
+     0.3  code (pid 9340)
+     0.3  kworker/7:2-events (pid 748)
+     0.3  code (pid 9563)
+     0.2  code (pid 9596)
+     0.2  gnome-shell (pid 5012)
+     0.1  code (pid 9294)
+     0.1  xdg-desktop-por (pid 5391)
+     0.1  containerd (pid 1876)

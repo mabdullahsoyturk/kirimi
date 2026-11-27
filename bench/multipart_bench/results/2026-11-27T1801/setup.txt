@@ -1,0 +1,56 @@
+date: 2026-11-27T18:01:20+01:00
+kernel: 7.0.0-44-generic
+cpu: 12th Gen Intel(R) Core(TM) i7-1260P
+repository: c3da59c-dirty
+packages:
+  kirimi-multipart 0.1.0
+  multipart 2.0.1
+  python-multipart 0.0.34
+  werkzeug 3.1.9
+  django 6.1.3
+  streaming-form-data 2.1.0
+  emmett-core 1.4.7
+  pyperf 2.11.0
+  python 3.12.12
+stopped services: power-profiles-daemon
+interrupts on CPUs 2-3:
+  moved IRQ 121 (dmar1) from CPUs 0-15
+  could not move IRQ 159 (nvme0q1), kernel-managed
+  could not move IRQ 160 (nvme0q2), kernel-managed
+  moved IRQ 194 (iwlwifi:queue_3) from CPUs 2
+  moved IRQ 195 (iwlwifi:queue_4) from CPUs 3
+  still on CPUs 2: IRQ 121 (dmar1)
+  still on CPUs 2: IRQ 159 (nvme0q1)
+  still on CPUs 3: IRQ 160 (nvme0q2)
+cpuset partition: CPUs 2-3 isolated, benchmark on CPU 2
+
+Unit irqbalance.service could not be found.
+Unit irqbalance.service could not be found.
+Show the system configuration
+
+System state
+============
+
+CPU: use 16 logical CPUs: 0-15
+Perf event: Maximum sample rate: 1 per second
+ASLR: Full randomization
+Linux scheduler: No CPU is isolated
+CPU Frequency: 0-7=min=max=2100 MHz; 8-15=min=max=1500 MHz
+IRQ affinity: Default IRQ affinity: CPU 0-15
+IRQ affinity: IRQ affinity: IRQ 0-16,27,56,120,122-125,133,141-142,157-158,175-176,191,206-209=CPU 0-15; IRQ 121,194-195=CPU 0-1,4-15; IRQ 159=CPU 2; IRQ 160=CPU 3; IRQ 161,198=CPU 6; IRQ 162,199=CPU 7; IRQ 163,192=CPU 0; IRQ 164,193=CPU 1; IRQ 165,196=CPU 4; IRQ 166,197=CPU 5; IRQ 167,200=CPU 8; IRQ 168,201=CPU 9; IRQ 169,202=CPU 10; IRQ 170,203=CPU 11; IRQ 171,204=CPU 12; IRQ 172,205=CPU 13; IRQ 173=CPU 14; IRQ 174=CPU 15
+Power supply: the power cable is plugged
+CPU scaling governor: 0-15=performance
+Turbo Boost (intel_pstate): Turbo Boost disabled
+
+Advices
+=======
+
+Linux scheduler: Use isolcpus=<cpu list> kernel parameter to isolate CPUs
+Linux scheduler: Use rcu_nocbs=<cpu list> kernel parameter (with isolcpus) to not schedule RCU on isolated CPUs
+
+OK! System ready for benchmarking
+
+benchmark process:
+  rttime=unlimited cgroup=0::/kirimi-bench
+  USER     CLS RTPRIO  NI PSR
+  muhammet  FF     99   -   2

@@ -33,7 +33,8 @@ HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parents[1]
 PATCH = HERE / "kirimi.patch"
 
-RUN_REQUIREMENTS = ["jinja2", "numpy", "scipy"]
+# pyperf (with psutil) is used by tuned.sh to tune the system.
+RUN_REQUIREMENTS = ["jinja2", "numpy", "scipy", "pyperf", "psutil"]
 PLOT_REQUIREMENTS = ["matplotlib"]
 # requirements-parsers.txt of multipart_bench installs multipart from a local
 # checkout of its author, so multipart is listed here instead.

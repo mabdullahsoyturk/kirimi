@@ -9,7 +9,7 @@ kirimi is a drop-in replacement for
 API with the same signatures and semantics, and is faster on every input,
 including adversarial ones.
 
-- **Fast:** faster than `multipart` in every benchmark scenario, up to 8×; see
+- **Fast:** faster than `multipart` in every benchmark scenario, up to 7.6×; see
   [Performance](#performance).
 - **Streaming:** a sans-IO push parser, plus blocking, async and WSGI helpers.
 - **Robust:** worst-case linear time, fuzzed, and tested against `multipart`
@@ -79,14 +79,14 @@ better):
 
 | Scenario | Description | Non-blocking | Blocking |
 |---|---|---:|---:|
-| simple | Two small text fields | 4.96× | 7.94× |
-| large | 100 small text fields | 5.50× | 7.05× |
-| upload | One 32 MB file | 3.31× | 1.13× |
-| mixed | Text fields and two files (1 MB, 2 MB) | 3.27× | 1.29× |
-| worstcase_crlf | 1 MB of `\r\n` | 2.92× | 1.33× |
-| worstcase_lf | 1 MB of `\n` | 3.36× | 1.36× |
-| worstcase_bchar | 1 MB of near-boundaries | 2.49× | 1.47× |
-| worstcase_junk | 1 MB of junk around the form | 4.36× | 4.82× |
+| simple | Two small text fields | 4.98× | 7.61× |
+| large | 100 small text fields | 5.82× | 6.92× |
+| upload | One 32 MB file | 3.49× | 1.27× |
+| mixed | Text fields and two files (1 MB, 2 MB) | 3.49× | 1.46× |
+| worstcase_crlf | 1 MB of `\r\n` | 3.09× | 1.61× |
+| worstcase_lf | 1 MB of `\n` | 3.51× | 1.47× |
+| worstcase_bchar | 1 MB of near-boundaries | 3.01× | 1.61× |
+| worstcase_junk | 1 MB of junk around the form | 4.89× | 5.26× |
 
 The blocking results for large files are bounded by writes to temporary files.
 Absolute numbers, the other parsers and the test setup are in

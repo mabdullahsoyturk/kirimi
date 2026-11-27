@@ -124,9 +124,21 @@ python bench/multipart_bench/run.py --profile default     # all scenarios
 python bench/multipart_bench/run.py "upload-*" "simple-*"  # a subset
 ```
 
-The runner does not pin the benchmark to a CPU core. See
-[bench/RESULTS.md](bench/RESULTS.md) for how the published results were
-measured.
+The runner does not pin the benchmark to a CPU core. For the published
+results in [bench/RESULTS.md](bench/RESULTS.md), run it through
+`tuned.sh` (Linux only), which tunes the system with pyperf, isolates a CPU
+core, runs the benchmark there and restores the system afterwards:
+
+```sh
+python bench/multipart_bench/run.py --setup-only
+sudo bash bench/multipart_bench/tuned.sh
+```
+
+It writes everything to `bench/multipart_bench/results/<timestamp>/` while it
+runs: the rendered report, the raw timings, the setup and the load recorded
+before and during the run (per-CPU and per-process CPU usage, memory traffic,
+temperature). Isolation does not cover shared caches and memory bandwidth, so
+check `load-summary.txt` for other activity before publishing numbers.
 
 ## Changelog
 

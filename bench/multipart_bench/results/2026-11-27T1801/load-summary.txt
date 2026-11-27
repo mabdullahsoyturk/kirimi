@@ -1,0 +1,39 @@
+Load recorded every 15 s. 'Other CPUs' excludes CPU 2
+(benchmark) and its sibling. Memory traffic is system-wide and includes
+the benchmark's own.
+
+                                baseline   benchmark
+duration (min)                       0.5         7.6
+samples                                2          30
+memory traffic, mean (GB/s)         0.98        1.47
+memory traffic, max (GB/s)          0.99        2.32
+other CPUs busy, mean (%)            0.2         0.4
+other CPUs busy, max (%)             0.3         0.8
+busiest other CPU, max (%)           0.7         2.9
+CPU 2 busy, mean (%)                 0.0        83.6
+load average (1 min), max           0.28        1.40
+package temperature, max (C)          47          51
+CPU 2 frequency (MHz)           720-2100   2068-2100
+
+Processes with the most CPU time during the benchmark (mean % of one CPU):
+    83.4  python (pid 14645)
+     1.4  code (pid 8254)
+     0.9  claude (pid 9007)
+     0.5  code (pid 8456)
+     0.3  code (pid 8184)
+     0.3  code (pid 8399)
+     0.2  code (pid 8437)
+     0.2  gnome-shell (pid 4929)
+     0.1  xdg-desktop-por (pid 5321)
+     0.1  containerd (pid 1873)
+     0.1  code (pid 8137)
+     0.1  bash (pid 14217)
+
+Interrupts on CPU 2 during the benchmark:
+     381809    LOC  Local timer interrupts
+       3003    159  IR-PCI-MSIX-0000:02:00.0 1-edge nvme0q1
+         22    CAL  Function call interrupts
+          3    TLB  TLB shootdowns
+          1    PMI  Performance monitoring interrupts
+          1    NMI  Non-maskable interrupts
+          1    MCP  Machine check polls
