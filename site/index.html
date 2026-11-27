@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kirimi — fast multipart/form-data parsing for Python</title>
+<meta name="description" content="A fast, streaming multipart/form-data parser for Python, written in Rust. A drop-in replacement for multipart, up to 8× faster.">
+<meta property="og:title" content="kirimi">
+<meta property="og:description" content="A fast, streaming multipart/form-data parser for Python, written in Rust.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23e8603c'/%3E%3Cpath d='M7 10h18M7 16h18M7 22h18' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --code-bg: #f3f1ed;
+  --text: #1d1b19;
+  --muted: #5f5a54;
+  --border: #e5e1db;
+  --accent: #d2502b;
+  --accent-soft: #fbe6de;
+  --bar-a: #d2502b;
+  --bar-b: #e9a48c;
+  --tok-kw: #a1381b;
+  --tok-str: #2f6f4f;
+  --tok-com: #8a847c;
+  --radius: 10px;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161412;
+    --surface: #1e1b19;
+    --code-bg: #231f1c;
+    --text: #ece8e3;
+    --muted: #a59e96;
+    --border: #35302b;
+    --accent: #f07a55;
+    --accent-soft: #3a231b;
+    --bar-a: #f07a55;
+    --bar-b: #8c4a35;
+    --tok-kw: #f39b7c;
+    --tok-str: #8fcfa9;
+    --tok-com: #847c74;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 var(--sans);
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+code, pre { font-family: var(--mono); font-size: 0.9em; }
+:not(pre) > code {
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+
+/* Header */
+header.top {
+  border-bottom: 1px solid var(--border);
+}
+header.top .wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px; gap: 16px;
+}
+.brand { font-weight: 700; letter-spacing: -0.01em; color: var(--text); text-decoration: none; font-size: 1.1rem; }
+nav.links { display: flex; gap: 20px; font-size: 0.95rem; }
+nav.links a { color: var(--muted); text-decoration: none; }
+nav.links a:hover { color: var(--text); }
+@media (max-width: 560px) { nav.links .opt { display: none; } }
+
+/* Hero */
+.hero { padding-top: 72px; padding-bottom: 48px; }
+.kanji {
+  font-size: 0.95rem; color: var(--muted); margin: 0 0 12px;
+}
+.kanji span { color: var(--accent); font-weight: 600; }
+h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.1; letter-spacing: -0.02em;
+  margin: 0 0 16px; max-width: 18ch;
+}
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.install {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 10px 10px 16px; font-family: var(--mono); font-size: 0.95rem;
+}
+.install .prompt { color: var(--muted); user-select: none; }
+.install button {
+  font: inherit; font-family: var(--sans); font-size: 0.8rem;
+  border: 1px solid var(--border); background: var(--code-bg); color: var(--text);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+.install button:hover { border-color: var(--accent); }
+.btn {
+  display: inline-block; padding: 11px 18px; border-radius: var(--radius);
+  background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; font-size: 0.95rem;
+}
+.btn:hover { filter: brightness(1.07); }
+
+/* Sections */
+section { padding: 40px 0; border-top: 1px solid var(--border); }
+h2 { font-size: 1.5rem; letter-spacing: -0.01em; margin: 0 0 8px; }
+.sub { color: var(--muted); margin: 0 0 24px; max-width: 65ch; }
+
+.features {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px;
+  padding: 0; margin: 0; list-style: none;
+}
+.features li {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px;
+}
+.features strong { display: block; margin-bottom: 4px; }
+.features p { margin: 0; color: var(--muted); font-size: 0.93rem; }
+
+/* Code */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: -1px; }
+.tabs button {
+  font: inherit; font-size: 0.9rem; cursor: pointer;
+  background: transparent; color: var(--muted);
+  border: 1px solid transparent; border-bottom: none;
+  border-radius: 8px 8px 0 0; padding: 8px 14px;
+}
+.tabs button[aria-selected="true"] {
+  background: var(--code-bg); color: var(--text); border-color: var(--border);
+}
+pre {
+  margin: 0; background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) var(--radius);
+  padding: 18px 20px; overflow-x: auto; line-height: 1.55;
+}
+.panel p { color: var(--muted); font-size: 0.93rem; margin: 12px 0 0; }
+.k { color: var(--tok-kw); }
+.s { color: var(--tok-str); }
+.c { color: var(--tok-com); font-style: italic; }
+
+/* Chart */
+.legend { display: flex; gap: 20px; font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.chart { display: grid; gap: 14px; }
+.row { display: grid; grid-template-columns: 130px 1fr; gap: 12px; align-items: center; }
+.row .name { font-family: var(--mono); font-size: 0.85rem; text-align: right; color: var(--text); overflow-wrap: anywhere; }
+.bars { display: grid; gap: 3px; position: relative; }
+.bars::before {
+  content: ""; position: absolute; top: -3px; bottom: -3px;
+  left: calc(85% / 8); border-left: 1px dashed var(--muted); opacity: 0.6;
+}
+.bar { height: 16px; display: flex; align-items: center; }
+.bar span {
+  display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px;
+}
+.bar b { font-weight: 500; font-size: 0.8rem; color: var(--muted); padding-left: 8px; font-variant-numeric: tabular-nums; }
+.bar.a span { background: var(--bar-a); }
+.bar.b span { background: var(--bar-b); }
+.axis { display: grid; grid-template-columns: 130px 1fr; gap: 12px; font-size: 0.78rem; color: var(--muted); }
+.axis div { position: relative; height: 16px; }
+.axis em { position: absolute; transform: translateX(-50%); font-style: normal; }
+.note { color: var(--muted); font-size: 0.9rem; margin: 20px 0 0; }
+@media (max-width: 560px) {
+  .row, .axis { grid-template-columns: 1fr; gap: 4px; }
+  .row .name { text-align: left; }
+  .axis > span { display: none; }
+}
+
+/* Differences */
+.diff { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 720px) { .diff { grid-template-columns: 1fr; } }
+.diff h3 { font-size: 1rem; margin: 0 0 8px; }
+.diff ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 0.93rem; }
+.diff li { margin-bottom: 8px; }
+.diff li code { color: var(--text); }
+
+footer { border-top: 1px solid var(--border); padding: 28px 0 48px; color: var(--muted); font-size: 0.9rem; }
+footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#">kirimi</a>
+    <nav class="links">
+      <a href="#usage" class="opt">Usage</a>
+      <a href="#performance" class="opt">Performance</a>
+      <a href="https://pypi.org/project/kirimi-multipart/">PyPI</a>
+      <a href="https://github.com/mabdullahsoyturk/kirimi">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <p class="kanji"><span lang="ja">切り身</span> &nbsp;·&nbsp; a slice cut from a whole fish</p>
+    <h1>Fast multipart/form-data parsing for Python</h1>
+    <p class="lede">
+      A streaming parser written in Rust and a drop-in replacement for
+      <a href="https://github.com/defnull/multipart">multipart</a>: the same API, the same
+      semantics, and faster on every input, including adversarial ones.
+    </p>
+    <div class="cta">
+      <div class="install">
+        <span><span class="prompt">$ </span><span id="install-cmd">pip install kirimi-multipart</span></span>
+        <button type="button" id="copy">Copy</button>
+      </div>
+      <a class="btn" href="https://github.com/mabdullahsoyturk/kirimi">View on GitHub</a>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <ul class="features">
+        <li><strong>Up to 8× faster</strong><p>Faster than <code>multipart</code> in every benchmark scenario.</p></li>
+        <li><strong>Streaming</strong><p>A sans-IO push parser, plus blocking, async and WSGI helpers.</p></li>
+        <li><strong>Robust</strong><p>Worst-case linear time, fuzzed, and differentially tested against <code>multipart</code>.</p></li>
+        <li><strong>Modern</strong><p>Python 3.12+, free-threaded builds included, fully typed.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="usage">
+    <div class="wrap">
+      <h2>Usage</h2>
+      <p class="sub">The package installs as <code>kirimi-multipart</code> and is imported as <code>kirimi</code>.
+        Code written for <code>multipart</code> works after changing the import.</p>
+
+      <div class="tabs" role="tablist" aria-label="Usage examples">
+        <button type="button" role="tab" id="tab-wsgi" aria-controls="panel-wsgi" aria-selected="true">WSGI</button>
+        <button type="button" role="tab" id="tab-stream" aria-controls="panel-stream" aria-selected="false" tabindex="-1">Stream</button>
+        <button type="button" role="tab" id="tab-push" aria-controls="panel-push" aria-selected="false" tabindex="-1">Non-blocking</button>
+      </div>
+
+      <div class="panel" role="tabpanel" id="panel-wsgi" aria-labelledby="tab-wsgi">
+<pre><code><span class="k">from</span> kirimi <span class="k">import</span> parse_form_data
+
+forms, files = parse_form_data(environ)
+name = forms.get(<span class="s">"name"</span>)                <span class="c"># str</span>
+upload = files.get(<span class="s">"upload"</span>)            <span class="c"># MultipartPart</span>
+<span class="k">if</span> upload <span class="k">is not</span> <span class="k">None</span>:
+    upload.save_as(<span class="s">"/srv/uploads/upload.bin"</span>)</code></pre>
+        <p>Parse a WSGI request into form fields and file uploads.</p>
+      </div>
+
+      <div class="panel" role="tabpanel" id="panel-stream" aria-labelledby="tab-stream" hidden>
+<pre><code><span class="k">from</span> kirimi <span class="k">import</span> MultipartParser
+
+<span class="k">for</span> part <span class="k">in</span> MultipartParser(stream, boundary, content_length):
+    print(part.name, part.filename, part.size, part.is_buffered())</code></pre>
+        <p>Parse a stream part by part. Small parts stay in memory, large ones are spooled to temporary files.</p>
+      </div>
+
+      <div class="panel" role="tabpanel" id="panel-push" aria-labelledby="tab-push" hidden>
+<pre><code><span class="k">from</span> kirimi <span class="k">import</span> MultipartSegment, PushMultipartParser
+
+<span class="k">with</span> PushMultipartParser(boundary) <span class="k">as</span> parser:
+    <span class="k">while not</span> parser.closed:
+        <span class="k">for</span> event <span class="k">in</span> parser.parse(read(<span class="s">65536</span>)):
+            <span class="k">if</span> isinstance(event, MultipartSegment):
+                ...  <span class="c"># start of a part: event.name, event.filename, event.headerlist</span>
+            <span class="k">elif</span> event:
+                ...  <span class="c"># chunk of the part body (bytes)</span>
+            <span class="k">else</span>:
+                ...  <span class="c"># end of the part</span></code></pre>
+        <p>Drive the non-blocking parser yourself, for example in an async server.
+          <code>parse_blocking()</code> and <code>parse_async()</code> wrap this loop for blocking and async <code>read</code> functions.</p>
+      </div>
+
+      <p class="note">See the <a href="https://multipart.readthedocs.io/">multipart documentation</a> for the full API.</p>
+    </div>
+  </section>
+
+  <section id="performance">
+    <div class="wrap">
+      <h2>Performance</h2>
+      <p class="sub">Throughput relative to <code>multipart</code> 2.0.1 in
+        <a href="https://github.com/defnull/multipart_bench">multipart_bench</a>. Higher is better;
+        the dashed line marks parity (1×).</p>
+
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:var(--bar-a)"></i>Non-blocking</span>
+        <span><i style="background:var(--bar-b)"></i>Blocking</span>
+      </div>
+
+      <div class="chart" id="chart" role="img" aria-label="Speedup over multipart per scenario; see the table in the README for exact values."></div>
+      <div class="axis" aria-hidden="true"><span></span><div id="axis"></div></div>
+
+      <p class="note">Blocking results for large files are bounded by writes to temporary files.
+        Absolute numbers, other parsers and the test setup are in
+        <a href="https://github.com/mabdullahsoyturk/kirimi/blob/master/bench/RESULTS.md">bench/RESULTS.md</a>.</p>
+    </div>
+  </section>
+
+  <section id="differences">
+    <div class="wrap">
+      <h2>Differences from multipart</h2>
+      <p class="sub">kirimi matches <code>multipart</code>'s public API. Where behaviour differs, it is to make results independent of how the input is chunked, or to follow the RFC.</p>
+      <div class="diff">
+        <div>
+          <h3>Chunking-independent results</h3>
+          <ul>
+            <li>A bare LF in a part header line is always an error.</li>
+            <li>A first boundary that does not follow a CRLF is always an error.</li>
+            <li>A header line of exactly <code>max_header_size</code> bytes is accepted.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Other</h3>
+          <ul>
+            <li>Boundaries containing CR are rejected (RFC 2046).</li>
+            <li><code>header_charset</code> supports UTF-8, Latin-1 and ASCII only; non-ASCII header names are rejected.</li>
+            <li><code>parse()</code> returns a list of events and raises before returning any events of a failing chunk.</li>
+            <li><code>MultipartParser</code> and <code>MultipartPart</code> are Rust types without the private attributes.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="note">Details are in the <a href="https://github.com/mabdullahsoyturk/kirimi#differences-from-multipart">README</a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>kirimi is released under the MIT license.</span>
+    <span>
+      <a href="https://github.com/mabdullahsoyturk/kirimi/blob/master/CHANGELOG.md">Changelog</a> ·
+      <a href="https://github.com/mabdullahsoyturk/kirimi/blob/master/CONTRIBUTING.md">Contributing</a> ·
+      <a href="https://github.com/mabdullahsoyturk/kirimi/issues">Issues</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+// Speedups over multipart 2.0.1, from bench/RESULTS.md.
+const DATA = [
+  ["simple", 4.96, 7.94],
+  ["large", 5.50, 7.05],
+  ["upload", 3.31, 1.13],
+  ["mixed", 3.27, 1.29],
+  ["worstcase_crlf", 2.92, 1.33],
+  ["worstcase_lf", 3.36, 1.36],
+  ["worstcase_bchar", 2.49, 1.47],
+  ["worstcase_junk", 4.36, 4.82],
+];
+const MAX = 8;
+
+const chart = document.getElementById("chart");
+for (const [name, nb, bl] of DATA) {
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML =
+    `<div class="name">${name}</div>` +
+    `<div class="bars">` +
+    `<div class="bar a" title="Non-blocking: ${nb.toFixed(2)}×"><span style="width:${(nb / MAX) * 85}%"></span><b>${nb.toFixed(2)}×</b></div>` +
+    `<div class="bar b" title="Blocking: ${bl.toFixed(2)}×"><span style="width:${(bl / MAX) * 85}%"></span><b>${bl.toFixed(2)}×</b></div>` +
+    `</div>`;
+  chart.appendChild(row);
+}
+// Bars use 85% of the track so their labels fit; the ticks and the parity line
+// (`.bars::before` in the CSS) are scaled to match.
+const axis = document.getElementById("axis");
+for (const t of [1, 2, 4, 6, 8]) {
+  const em = document.createElement("em");
+  em.style.left = `${(t / MAX) * 85}%`;
+  em.textContent = `${t}×`;
+  axis.appendChild(em);
+}
+
+// Copy install command.
+const copy = document.getElementById("copy");
+copy.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById("install-cmd").textContent);
+    copy.textContent = "Copied";
+  } catch {
+    copy.textContent = "Press Ctrl+C";
+  }
+  setTimeout(() => (copy.textContent = "Copy"), 1500);
+});
+
+// Tabs.
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+function select(tab) {
+  for (const t of tabs) {
+    const on = t === tab;
+    t.setAttribute("aria-selected", on);
+    t.tabIndex = on ? 0 : -1;
+    document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+  }
+  tab.focus();
+}
+tabs.forEach((t, i) => {
+  t.addEventListener("click", () => select(t));
+  t.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") select(tabs[(i + 1) % tabs.length]);
+    if (e.key === "ArrowLeft") select(tabs[(i - 1 + tabs.length) % tabs.length]);
+  });
+});
+</script>
+</body>
+</html>
